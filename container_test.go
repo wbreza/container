@@ -148,7 +148,7 @@ func TestContainer_RegisterNamedSingleton(t *testing.T) {
 	assert.NoError(t, err)
 
 	var sh Shape
-	err = instance.NamedResolve(&sh, "theCircle")
+	err = instance.ResolvedNamed(&sh, "theCircle")
 	assert.NoError(t, err)
 	assert.Equal(t, sh.GetArea(), 13)
 }
@@ -207,7 +207,7 @@ func TestContainer_RegisterNamedTransient(t *testing.T) {
 	assert.NoError(t, err)
 
 	var sh Shape
-	err = instance.NamedResolve(&sh, "theCircle")
+	err = instance.ResolvedNamed(&sh, "theCircle")
 	assert.NoError(t, err)
 	assert.Equal(t, sh.GetArea(), 13)
 }
@@ -500,7 +500,7 @@ func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 
 	err = instance.RegisterNamedSingleton("C", func() (Shape, error) {
 		var s Shape
-		if err := instance.NamedResolve(&s, "foo"); err != nil {
+		if err := instance.ResolvedNamed(&s, "foo"); err != nil {
 			return nil, err
 		}
 		return &Circle{a: 5}, nil
@@ -706,4 +706,57 @@ func TestContainer_RegisterScoped_With_Resolve_That_Returns_Nothing(t *testing.T
 func TestContainer_RegisterScoped_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
 	err := instance.RegisterScoped("STRING!")
 	assert.EqualError(t, err, "container: the resolver must be a function")
+}
+
+func TestContainer_ResolveInstance(t *testing.T) {
+	c := container.New()
+	circle := &Circle{a: 5}
+	err := c.RegisterInstance(circle)
+	assert.NoError(t, err)
+
+	var resolvedCircle *Circle
+	err = c.Resolve(&resolvedCircle)
+	assert.NoError(t, err)
+	assert.Same(t, circle, resolvedCircle)
+}
+
+func TestContainer_ResolveInstance_With_Invalid_Receiver(t *testing.T) {
+	c := container.New()
+	err := c.RegisterInstance(func() Database {
+		return &MySQL{}
+	})
+	assert.EqualError(t, err, "container: cannot register a function as an instance")
+}
+
+func TestContainer_ResolveInstance_With_Value(t *testing.T) {
+	c := container.New()
+	var i int = 5
+	err := c.RegisterInstance(i)
+	assert.NoError(t, err)
+
+	var resolvedInt int
+	err = c.Resolve(&resolvedInt)
+	assert.NoError(t, err)
+
+	assert.Equal(t, i, resolvedInt)
+}
+
+func TestContainer_ResolveNamedInstance(t *testing.T) {
+	c := container.New()
+	circle := &Circle{a: 5}
+	err := c.RegisterNamedInstance("circle", circle)
+	assert.NoError(t, err)
+
+	var resolvedCircle *Circle
+	err = c.ResolvedNamed(&resolvedCircle, "circle")
+	assert.NoError(t, err)
+	assert.Same(t, circle, resolvedCircle)
+}
+
+func TestContainer_ResolvedNamedInstance_With_Invalid_Receiver(t *testing.T) {
+	c := container.New()
+	err := c.RegisterNamedInstance("circle", func() Database {
+		return &MySQL{}
+	})
+	assert.EqualError(t, err, "container: cannot register a function as an instance")
 }

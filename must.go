@@ -1,5 +1,19 @@
 package container
 
+// MustRegisterInstance wraps the `RegisterInstance` method and panics on errors instead of returning the errors.
+func MustRegisterInstance(c *Container, instance interface{}) {
+	if err := c.RegisterInstance(instance); err != nil {
+		panic(err)
+	}
+}
+
+// MustRegisterNamedInstance wraps the `RegisterNamedInstance` method and panics on errors instead of returning the errors.
+func MustRegisterNamedInstance(c *Container, name string, instance interface{}) {
+	if err := c.RegisterNamedInstance(name, instance); err != nil {
+		panic(err)
+	}
+}
+
 // MustRegisterSingleton wraps the `RegisterSingleton` method and panics on errors instead of returning the errors.
 func MustRegisterSingleton(c *Container, resolver interface{}) {
 	if err := c.RegisterSingleton(resolver); err != nil {
@@ -58,7 +72,7 @@ func MustResolve(c *Container, abstraction interface{}) {
 
 // MustNamedResolve wraps the `NamedResolve` method and panics on errors instead of returning the errors.
 func MustNamedResolve(c *Container, abstraction interface{}, name string) {
-	if err := c.NamedResolve(abstraction, name); err != nil {
+	if err := c.ResolvedNamed(abstraction, name); err != nil {
 		panic(err)
 	}
 }

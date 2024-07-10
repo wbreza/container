@@ -7,6 +7,20 @@ import (
 	"github.com/wbreza/container/v4"
 )
 
+func TestRegisterInstance(t *testing.T) {
+	container.Reset()
+
+	err := container.RegisterInstance(&Circle{a: 13})
+	assert.NoError(t, err)
+}
+
+func TestRegisterNamedInstance(t *testing.T) {
+	container.Reset()
+
+	err := container.RegisterNamedInstance("rounded", &Circle{a: 13})
+	assert.NoError(t, err)
+}
+
 func TestRegisterSingleton(t *testing.T) {
 	container.Reset()
 
@@ -34,10 +48,28 @@ func TestRegisterTransient(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TesRegisterNamedTransient(t *testing.T) {
+func TestRegisterNamedTransient(t *testing.T) {
 	container.Reset()
 
 	err := container.RegisterNamedTransient("rounded", func() Shape {
+		return &Circle{a: 13}
+	})
+	assert.NoError(t, err)
+}
+
+func TestRegisterScoped(t *testing.T) {
+	container.Reset()
+
+	err := container.RegisterScoped(func() Shape {
+		return &Circle{a: 13}
+	})
+	assert.NoError(t, err)
+}
+
+func TestRegisterNamedScoped(t *testing.T) {
+	container.Reset()
+
+	err := container.RegisterNamedScoped("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)

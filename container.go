@@ -148,6 +148,29 @@ func (c *Container) Reset() {
 	}
 }
 
+// RegisterInstance binds an instance to the container in singleton mode.
+func (c *Container) RegisterInstance(instance interface{}) error {
+	return c.RegisterNamedInstance("", instance)
+}
+
+// RegisterNamedInstance binds an instance to the container in singleton mode with a name.
+func (c *Container) RegisterNamedInstance(name string, instance interface{}) error {
+	t := reflect.TypeOf(instance)
+
+	if t.Kind() == reflect.Func {
+		return errors.New("container: cannot register a function as an instance")
+	}
+
+	c.bindings[t] = map[string]*binding{
+		name: {
+			concrete: instance,
+			lifetime: Singleton,
+		},
+	}
+
+	return nil
+}
+
 // Singleton binds an abstraction to concrete in singleton mode.
 // It takes a resolver function that returns the concrete, and its return type matches the abstraction (interface).
 // The resolver function can have arguments of abstraction that have been declared in the Container already.
@@ -213,11 +236,11 @@ func (c *Container) Call(function interface{}) error {
 
 // Resolve takes an abstraction (reference of an interface type) and fills it with the related concrete.
 func (c *Container) Resolve(abstraction interface{}) error {
-	return c.NamedResolve(abstraction, "")
+	return c.ResolvedNamed(abstraction, "")
 }
 
-// NamedResolve takes abstraction and its name and fills it with the related concrete.
-func (c *Container) NamedResolve(abstraction interface{}, name string) error {
+// ResolvedNamed takes abstraction and its name and fills it with the related concrete.
+func (c *Container) ResolvedNamed(abstraction interface{}, name string) error {
 	receiverType := reflect.TypeOf(abstraction)
 	if receiverType == nil {
 		return errors.New("container: invalid abstraction")

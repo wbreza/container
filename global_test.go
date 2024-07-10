@@ -3,41 +3,41 @@ package container_test
 import (
 	"testing"
 
-	"github.com/golobby/container/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/wbreza/container/v4"
 )
 
-func TestSingleton(t *testing.T) {
+func TestRegisterSingleton(t *testing.T) {
 	container.Reset()
 
-	err := container.Singleton(func() Shape {
+	err := container.RegisterSingleton(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestNamedSingleton(t *testing.T) {
+func TestRegisterNamedSingleton(t *testing.T) {
 	container.Reset()
 
-	err := container.NamedSingleton("rounded", func() Shape {
+	err := container.RegisterNamedSingleton("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestTransient(t *testing.T) {
+func TestRegisterTransient(t *testing.T) {
 	container.Reset()
 
-	err := container.Transient(func() Shape {
+	err := container.RegisterTransient(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestNamedTransient(t *testing.T) {
+func TesRegisterNamedTransient(t *testing.T) {
 	container.Reset()
 
-	err := container.NamedTransient("rounded", func() Shape {
+	err := container.RegisterNamedTransient("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -55,7 +55,7 @@ func TestResolve(t *testing.T) {
 
 	var s Shape
 
-	err := container.Singleton(func() Shape {
+	err := container.RegisterSingleton(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -64,12 +64,12 @@ func TestResolve(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestNamedResolve(t *testing.T) {
+func TestResolveNamed(t *testing.T) {
 	container.Reset()
 
 	var s Shape
 
-	err := container.NamedSingleton("rounded", func() Shape {
+	err := container.RegisterNamedSingleton("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -81,7 +81,7 @@ func TestNamedResolve(t *testing.T) {
 func TestFill(t *testing.T) {
 	container.Reset()
 
-	err := container.Singleton(func() Shape {
+	err := container.RegisterSingleton(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)

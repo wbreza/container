@@ -1,29 +1,43 @@
 package container
 
-// MustSingleton wraps the `Singleton` method and panics on errors instead of returning the errors.
-func MustSingleton(c *Container, resolver interface{}) {
-	if err := c.Singleton(resolver); err != nil {
+// MustRegisterSingleton wraps the `RegisterSingleton` method and panics on errors instead of returning the errors.
+func MustRegisterSingleton(c *Container, resolver interface{}) {
+	if err := c.RegisterSingleton(resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustNamedSingleton wraps the `NamedSingleton` method and panics on errors instead of returning the errors.
-func MustNamedSingleton(c *Container, name string, resolver interface{}) {
-	if err := c.NamedSingleton(name, resolver); err != nil {
+// MustRegisterNamedSingleton wraps the `RegisterNamedSingleton` method and panics on errors instead of returning the errors.
+func MustRegisterNamedSingleton(c *Container, name string, resolver interface{}) {
+	if err := c.RegisterNamedSingleton(name, resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustTransient wraps the `Transient` method and panics on errors instead of returning the errors.
-func MustTransient(c *Container, resolver interface{}) {
-	if err := c.Transient(resolver); err != nil {
+// MustRegisterTransient wraps the `RegisterTransient` method and panics on errors instead of returning the errors.
+func MustRegisterTransient(c *Container, resolver interface{}) {
+	if err := c.RegisterTransient(resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustNamedTransient wraps the `NamedTransient` method and panics on errors instead of returning the errors.
-func MustNamedTransient(c *Container, name string, resolver interface{}) {
-	if err := c.NamedTransient(name, resolver); err != nil {
+// MustRegisterNamedTransient wraps the `RegisterNamedTransient` method and panics on errors instead of returning the errors.
+func MustRegisterNamedTransient(c *Container, name string, resolver interface{}) {
+	if err := c.RegisterNamedTransient(name, resolver); err != nil {
+		panic(err)
+	}
+}
+
+// MustRegisterScoped wraps the `RegisterScoped` method and panics on errors instead of returning the errors.
+func MustRegisterScoped(c *Container, resolver interface{}) {
+	if err := c.RegisterScoped(resolver); err != nil {
+		panic(err)
+	}
+}
+
+// MustRegisterNamedScoped wraps the `RegisterNamedScoped` method and panics on errors instead of returning the errors.
+func MustRegisterNamedScoped(c *Container, name string, resolver interface{}) {
+	if err := c.RegisterNamedScoped(name, resolver); err != nil {
 		panic(err)
 	}
 }

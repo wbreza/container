@@ -4,43 +4,43 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golobby/container/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/wbreza/container/v4"
 )
 
-func TestMustSingleton_It_Should_Panic_On_Error(t *testing.T) {
+func TestMustRegisterSingleton_It_Should_Panic_On_Error(t *testing.T) {
 	assert.PanicsWithError(t, "container: the resolver must be a function", func() {
 		c := container.New()
-		container.MustSingleton(c, "not a resolver function")
+		container.MustRegisterSingleton(c, "not a resolver function")
 	})
 }
 
 func TestMustNamedSingleton_It_Should_Panic_On_Error(t *testing.T) {
 	assert.PanicsWithError(t, "container: the resolver must be a function", func() {
 		c := container.New()
-		container.MustNamedSingleton(c, "name", "not a resolver function")
+		container.MustRegisterNamedSingleton(c, "name", "not a resolver function")
 	})
 }
 
-func TestMustTransient_It_Should_Panic_On_Error(t *testing.T) {
+func TestMustRegisterTransient_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
 
 	defer func() { recover() }()
-	container.MustTransient(c, func() (Shape, error) {
+	container.MustRegisterTransient(c, func() (Shape, error) {
 		return nil, errors.New("error")
 	})
 
 	var resVal Shape
 	container.MustResolve(c, &resVal)
 
-	t.Errorf("panic expcted.")
+	t.Errorf("panic expected.")
 }
 
-func TestMustNamedTransient_It_Should_Panic_On_Error(t *testing.T) {
+func TestMustRegisterNamedTransient_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
 
 	defer func() { recover() }()
-	container.MustNamedTransient(c, "name", func() (Shape, error) {
+	container.MustRegisterNamedTransient(c, "name", func() (Shape, error) {
 		return nil, errors.New("error")
 	})
 

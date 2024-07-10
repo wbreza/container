@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golobby/container/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/wbreza/container/v4"
 )
 
 type Shape interface {
@@ -25,20 +25,57 @@ func (c Circle) GetArea() int {
 	return c.a
 }
 
-type Database interface {
-	Connect() bool
+type Square struct {
+	a int
 }
 
-type MySQL struct{}
+func (s *Square) SetArea(a int) {
+	s.a = a
+}
+
+func (s Square) GetArea() int {
+	return s.a
+}
+
+type DatabaseOptions struct {
+	Host     string
+	Port     int
+	Username string
+}
+
+type Database interface {
+	Connect() bool
+	Options() *DatabaseOptions
+}
+
+type MySQL struct {
+	options *DatabaseOptions
+}
 
 func (m MySQL) Connect() bool {
 	return true
 }
 
+func (m MySQL) Options() *DatabaseOptions {
+	return m.options
+}
+
+type SqlServer struct {
+	options *DatabaseOptions
+}
+
+func (s SqlServer) Connect() bool {
+	return true
+}
+
+func (s SqlServer) Options() *DatabaseOptions {
+	return s.options
+}
+
 var instance = container.New()
 
-func TestContainer_Singleton(t *testing.T) {
-	err := instance.Singleton(func() Shape {
+func TestContainer_RegisterSingleton(t *testing.T) {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -55,8 +92,8 @@ func TestContainer_Singleton(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestContainer_Singleton_With_Missing_Dependency_Resolve(t *testing.T) {
-	err := instance.Singleton(func(db Database) Shape {
+func TestContainer_RegisterSingleton_With_Missing_Dependency_Resolve(t *testing.T) {
+	err := instance.RegisterSingleton(func(db Database) Shape {
 		return &Circle{a: 13}
 	})
 
@@ -64,48 +101,48 @@ func TestContainer_Singleton_With_Missing_Dependency_Resolve(t *testing.T) {
 
 	var resolved Shape
 	err = instance.Resolve(&resolved)
-	assert.EqualError(t, err, "container: encountered error while making concrete for: container_test.Shape. Error encountered: container: no concrete found for: container_test.Database")
+	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Database")
 }
 
-func TestContainer_Singleton_With_Resolve_That_Returns_Nothing(t *testing.T) {
-	err := instance.Singleton(func() {})
+func TestContainer_RegisterSingleton_With_Resolve_That_Returns_Nothing(t *testing.T) {
+	err := instance.RegisterSingleton(func() {})
 	assert.Error(t, err, "container: resolver function signature is invalid")
 }
 
-func TestContainer_Singleton_With_Resolve_That_Returns_Error(t *testing.T) {
-	err := instance.Singleton("not a resolver")
+func TestContainer_RegisterSingleton_With_Resolve_That_Returns_Error(t *testing.T) {
+	err := instance.RegisterSingleton("not a resolver")
 	assert.EqualError(t, err, "container: the resolver must be a function")
 }
 
-func TestContainer_Singleton_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
-	err := instance.Singleton("STRING!")
+func TestContainer_RegisterSingleton_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
+	err := instance.RegisterSingleton("STRING!")
 	assert.EqualError(t, err, "container: the resolver must be a function")
 }
 
-func TestContainer_Singleton_With_Resolvable_Arguments(t *testing.T) {
-	err := instance.Singleton(func() Shape {
+func TestContainer_RegisterSingleton_With_Resolvable_Arguments(t *testing.T) {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{a: 666}
 	})
 	assert.NoError(t, err)
 
-	err = instance.Singleton(func(s Shape) Database {
+	err = instance.RegisterSingleton(func(s Shape) Database {
 		assert.Equal(t, s.GetArea(), 666)
 		return &MySQL{}
 	})
 	assert.NoError(t, err)
 }
 
-func TestContainer_Singleton_With_Non_Resolvable_Arguments(t *testing.T) {
+func TestContainer_RegisterSingleton_With_Non_Resolvable_Arguments(t *testing.T) {
 	instance.Reset()
 
-	err := instance.Singleton(func(s Shape) Shape {
+	err := instance.RegisterSingleton(func(s Shape) Shape {
 		return &Circle{a: s.GetArea()}
 	})
 	assert.EqualError(t, err, "container: resolver function signature is invalid - depends on abstract it returns")
 }
 
-func TestContainer_NamedSingleton(t *testing.T) {
-	err := instance.NamedSingleton("theCircle", func() Shape {
+func TestContainer_RegisterNamedSingleton(t *testing.T) {
+	err := instance.RegisterNamedSingleton("theCircle", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -116,8 +153,8 @@ func TestContainer_NamedSingleton(t *testing.T) {
 	assert.Equal(t, sh.GetArea(), 13)
 }
 
-func TestContainer_Transient(t *testing.T) {
-	err := instance.Transient(func() Shape {
+func TestContainer_RegisterTransient(t *testing.T) {
+	err := instance.RegisterTransient(func() Shape {
 		return &Circle{a: 666}
 	})
 	assert.NoError(t, err)
@@ -134,19 +171,19 @@ func TestContainer_Transient(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestContainer_Transient_With_Resolve_That_Returns_Nothing(t *testing.T) {
-	err := instance.Transient(func() {})
+func TestContainer_RegisterTransient_With_Resolve_That_Returns_Nothing(t *testing.T) {
+	err := instance.RegisterTransient(func() {})
 	assert.Error(t, err, "container: resolver function signature is invalid")
 }
 
-func TestContainer_Transient_With_Resolve_That_Returns_Error(t *testing.T) {
-	err := instance.Transient(func() (Shape, error) {
+func TestContainer_RegisterTransient_With_Resolve_That_Returns_Error(t *testing.T) {
+	err := instance.RegisterTransient(func() (Shape, error) {
 		return nil, errors.New("app: error resolving Shape")
 	})
 
 	assert.NoError(t, err)
 
-	err = instance.Transient(func() (Database, error) {
+	err = instance.RegisterTransient(func() (Database, error) {
 		return nil, errors.New("app: error resolving Database")
 	})
 	assert.NoError(t, err)
@@ -156,15 +193,15 @@ func TestContainer_Transient_With_Resolve_That_Returns_Error(t *testing.T) {
 	assert.Error(t, err, "app: error resolving Database")
 }
 
-func TestContainer_Transient_With_Resolve_With_Invalid_Signature_It_Should_Fail(t *testing.T) {
-	err := instance.Transient(func() (Shape, Database, error) {
+func TestContainer_RegisterTransient_With_Resolve_With_Invalid_Signature_It_Should_Fail(t *testing.T) {
+	err := instance.RegisterTransient(func() (Shape, Database, error) {
 		return nil, nil, nil
 	})
 	assert.Error(t, err, "container: resolver function signature is invalid")
 }
 
-func TestContainer_NamedTransient(t *testing.T) {
-	err := instance.NamedTransient("theCircle", func() Shape {
+func TestContainer_RegisterNamedTransient(t *testing.T) {
+	err := instance.RegisterNamedTransient("theCircle", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -176,12 +213,12 @@ func TestContainer_NamedTransient(t *testing.T) {
 }
 
 func TestContainer_Call_With_Multiple_Resolving(t *testing.T) {
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{a: 5}
 	})
 	assert.NoError(t, err)
 
-	err = instance.Singleton(func() Database {
+	err = instance.RegisterSingleton(func() Database {
 		return &MySQL{}
 	})
 	assert.NoError(t, err)
@@ -200,7 +237,7 @@ func TestContainer_Call_With_Multiple_Resolving(t *testing.T) {
 
 func TestContainer_Call_With_Dependency_Missing_In_Chain(t *testing.T) {
 	var instance = container.New()
-	err := instance.Singleton(func() (Database, error) {
+	err := instance.RegisterSingleton(func() (Database, error) {
 		var s Shape
 		if err := instance.Resolve(&s); err != nil {
 			return nil, err
@@ -214,7 +251,7 @@ func TestContainer_Call_With_Dependency_Missing_In_Chain(t *testing.T) {
 			t.Error("Expected MySQL")
 		}
 	})
-	assert.EqualError(t, err, "container: no concrete found for: container_test.Shape")
+	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Shape")
 }
 
 func TestContainer_Call_With_Unsupported_Receiver_It_Should_Fail(t *testing.T) {
@@ -225,19 +262,19 @@ func TestContainer_Call_With_Unsupported_Receiver_It_Should_Fail(t *testing.T) {
 func TestContainer_Call_With_Second_UnBounded_Argument(t *testing.T) {
 	instance.Reset()
 
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{}
 	})
 	assert.NoError(t, err)
 
 	err = instance.Call(func(s Shape, d Database) {})
-	assert.EqualError(t, err, "container: no concrete found for: container_test.Database")
+	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Database")
 }
 
 func TestContainer_Call_With_A_Returning_Error(t *testing.T) {
 	instance.Reset()
 
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{}
 	})
 	assert.NoError(t, err)
@@ -251,7 +288,7 @@ func TestContainer_Call_With_A_Returning_Error(t *testing.T) {
 func TestContainer_Call_With_A_Returning_Nil_Error(t *testing.T) {
 	instance.Reset()
 
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{}
 	})
 	assert.NoError(t, err)
@@ -265,7 +302,7 @@ func TestContainer_Call_With_A_Returning_Nil_Error(t *testing.T) {
 func TestContainer_Call_With_Invalid_Signature(t *testing.T) {
 	instance.Reset()
 
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{}
 	})
 	assert.NoError(t, err)
@@ -277,12 +314,12 @@ func TestContainer_Call_With_Invalid_Signature(t *testing.T) {
 }
 
 func TestContainer_Resolve_With_Reference_As_Resolver(t *testing.T) {
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{a: 5}
 	})
 	assert.NoError(t, err)
 
-	err = instance.Singleton(func() Database {
+	err = instance.RegisterSingleton(func() Database {
 		return &MySQL{}
 	})
 	assert.NoError(t, err)
@@ -321,14 +358,14 @@ func TestContainer_Resolve_With_UnBounded_Reference_It_Should_Fail(t *testing.T)
 
 	var s Shape
 	err := instance.Resolve(&s)
-	assert.EqualError(t, err, "container: no concrete found for: container_test.Shape")
+	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Shape")
 }
 
 func TestContainer_Resolve_With_Error_Should_Not_Cache_Concrete(t *testing.T) {
 	c := container.New()
 
 	resolveCount := 0
-	err := c.Singleton(func() (Shape, error) {
+	err := c.RegisterSingleton(func() (Shape, error) {
 		resolveCount++
 		if resolveCount == 1 {
 			return nil, errors.New("first resolve error")
@@ -351,17 +388,17 @@ func TestContainer_Resolve_With_Error_Should_Not_Cache_Concrete(t *testing.T) {
 }
 
 func TestContainer_Fill_With_Struct_Pointer(t *testing.T) {
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{a: 5}
 	})
 	assert.NoError(t, err)
 
-	err = instance.NamedSingleton("C", func() Shape {
+	err = instance.RegisterNamedSingleton("C", func() Shape {
 		return &Circle{a: 5}
 	})
 	assert.NoError(t, err)
 
-	err = instance.Singleton(func() Database {
+	err = instance.RegisterSingleton(func() Database {
 		return &MySQL{}
 	})
 	assert.NoError(t, err)
@@ -381,12 +418,12 @@ func TestContainer_Fill_With_Struct_Pointer(t *testing.T) {
 }
 
 func TestContainer_Fill_Unexported_With_Struct_Pointer(t *testing.T) {
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{a: 5}
 	})
 	assert.NoError(t, err)
 
-	err = instance.Singleton(func() Database {
+	err = instance.RegisterSingleton(func() Database {
 		return &MySQL{}
 	})
 	assert.NoError(t, err)
@@ -405,7 +442,7 @@ func TestContainer_Fill_Unexported_With_Struct_Pointer(t *testing.T) {
 }
 
 func TestContainer_Fill_With_Invalid_Field_It_Should_Fail(t *testing.T) {
-	err := instance.NamedSingleton("C", func() Shape {
+	err := instance.RegisterNamedSingleton("C", func() Shape {
 		return &Circle{a: 5}
 	})
 	assert.NoError(t, err)
@@ -417,7 +454,7 @@ func TestContainer_Fill_With_Invalid_Field_It_Should_Fail(t *testing.T) {
 	myApp := App{}
 
 	err = instance.Fill(&myApp)
-	assert.EqualError(t, err, "container: cannot make S field")
+	assert.Contains(t, err.Error(), "container: encountered error while making S field")
 }
 
 func TestContainer_Fill_With_Invalid_Tag_It_Should_Fail(t *testing.T) {
@@ -439,7 +476,7 @@ func TestContainer_Fill_With_Invalid_Field_Name_It_Should_Fail(t *testing.T) {
 	myApp := App{}
 
 	err := instance.Fill(&myApp)
-	assert.EqualError(t, err, "container: cannot make S field")
+	assert.Contains(t, err.Error(), "container: encountered error while making S field")
 }
 
 func TestContainer_Fill_With_Invalid_Struct_It_Should_Fail(t *testing.T) {
@@ -456,12 +493,12 @@ func TestContainer_Fill_With_Invalid_Pointer_It_Should_Fail(t *testing.T) {
 
 func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 	var instance = container.New()
-	err := instance.Singleton(func() Shape {
+	err := instance.RegisterSingleton(func() Shape {
 		return &Circle{a: 5}
 	})
 	assert.NoError(t, err)
 
-	err = instance.NamedSingleton("C", func() (Shape, error) {
+	err = instance.RegisterNamedSingleton("C", func() (Shape, error) {
 		var s Shape
 		if err := instance.NamedResolve(&s, "foo"); err != nil {
 			return nil, err
@@ -470,7 +507,7 @@ func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Singleton(func() Database {
+	err = instance.RegisterSingleton(func() Database {
 		return &MySQL{}
 	})
 	assert.NoError(t, err)
@@ -483,5 +520,190 @@ func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 	}{}
 
 	err = instance.Fill(&myApp)
-	assert.EqualError(t, err, "container: no concrete found for: container_test.Shape")
+	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Shape")
+}
+
+func TestContainer_ResolveScoped_Is_Same_Instance_Within_Scope(t *testing.T) {
+	root := container.New()
+
+	root.RegisterScoped(func() Database {
+		return &MySQL{}
+	})
+
+	scope, err := root.NewScope()
+	assert.NoError(t, err)
+
+	var database1 Database
+	err = scope.Resolve(&database1)
+	assert.NoError(t, err)
+
+	var database2 Database
+	err = scope.Resolve(&database2)
+	assert.NoError(t, err)
+
+	// Both instances are resolved from the same scope so the same cached instance should be returned for both.
+	assert.Same(t, database1, database2)
+}
+
+func TestContainer_ResolveScoped_At_Root_Acts_Like_Transient(t *testing.T) {
+	root := container.New()
+
+	root.RegisterScoped(func() Database {
+		return &MySQL{}
+	})
+
+	var db1 Database
+	err := root.Resolve(&db1)
+	assert.NoError(t, err)
+	assert.NotNil(t, db1)
+
+	var db2 Database
+	err = root.Resolve(&db2)
+	assert.NoError(t, err)
+	assert.NotNil(t, db2)
+
+	// When scoped elements are resolved at the root container, they act like transient elements.
+	assert.NotSame(t, db1, db2)
+}
+
+func TestContainer_ResolveScoped_With_Singleton_Dependency(t *testing.T) {
+	root := container.New()
+
+	root.RegisterSingleton(func() *DatabaseOptions {
+		return &DatabaseOptions{
+			Host:     "localhost",
+			Port:     3306,
+			Username: "root",
+		}
+	})
+
+	root.RegisterScoped(func(options *DatabaseOptions) Database {
+		return &MySQL{
+			options: options,
+		}
+	})
+
+	scope1, err := root.NewScope()
+	assert.NoError(t, err)
+
+	var database1 Database
+	err = scope1.Resolve(&database1)
+	assert.NoError(t, err)
+
+	scope2, err := root.NewScope()
+	assert.NoError(t, err)
+
+	var database2 Database
+	err = scope2.Resolve(&database2)
+	assert.NoError(t, err)
+
+	assert.NotSame(t, database1, database2)
+	assert.Same(t, database1.Options(), database2.Options())
+}
+
+func TestContainer_ResolveScoped_With_Transient_Dependency(t *testing.T) {
+	root := container.New()
+
+	root.RegisterTransient(func() *DatabaseOptions {
+		return &DatabaseOptions{
+			Host:     "localhost",
+			Port:     3306,
+			Username: "root",
+		}
+	})
+
+	root.RegisterScoped(func(options *DatabaseOptions) Database {
+		return &MySQL{
+			options: options,
+		}
+	})
+
+	scope1, err := root.NewScope()
+	assert.NoError(t, err)
+
+	var database1 Database
+	err = scope1.Resolve(&database1)
+	assert.NoError(t, err)
+
+	scope2, err := root.NewScope()
+	assert.NoError(t, err)
+
+	var database2 Database
+	err = scope2.Resolve(&database2)
+	assert.NoError(t, err)
+
+	assert.NotSame(t, database1, database2)
+	assert.NotSame(t, database1.Options(), database2.Options())
+}
+
+func TestContainer_Fill_With_Scoped_Elements(t *testing.T) {
+	root := container.New()
+	root.RegisterNamedScoped("square", func() Shape {
+		return &Square{a: 10}
+	})
+
+	root.RegisterNamedScoped("circle", func() Shape {
+		return &Circle{a: 5}
+	})
+
+	type request struct {
+		square Shape `container:"name"`
+		circle Shape `container:"name"`
+	}
+
+	scope, err := root.NewScope()
+	assert.NoError(t, err)
+
+	var req1 request
+
+	err = scope.Fill(&req1)
+	assert.NoError(t, err)
+	assert.NotNil(t, req1)
+
+	assert.IsType(t, &Square{}, req1.square)
+	assert.IsType(t, &Circle{}, req1.circle)
+
+	var req2 request
+	err = scope.Fill(&req2)
+	assert.NoError(t, err)
+	assert.NotNil(t, req2)
+
+	assert.Same(t, req1.square, req2.square)
+	assert.Same(t, req1.circle, req2.circle)
+}
+
+func TestContainer_Call_With_Scoped_Elements(t *testing.T) {
+	root := container.New()
+
+	root.RegisterScoped(func() Shape {
+		return &Circle{a: 5}
+	})
+
+	scope, err := root.NewScope()
+	assert.NoError(t, err)
+
+	// First call should already have area set to 5 from the resolver
+	err = scope.Call(func(s1 Shape) {
+		assert.Equal(t, 5, s1.GetArea())
+		s1.SetArea(20)
+	})
+
+	assert.NoError(t, err)
+
+	// Second call should have the area set to 20 from the previous call
+	err = scope.Call(func(s2 Shape) {
+		assert.Equal(t, 20, s2.GetArea())
+	})
+
+	assert.NoError(t, err)
+}
+
+func TestContainer_RegisterScoped_With_Resolve_That_Returns_Nothing(t *testing.T) {
+	err := instance.RegisterScoped(func() {})
+	assert.Error(t, err, "container: resolver function signature is invalid")
+}
+
+func TestContainer_RegisterScoped_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
+	err := instance.RegisterScoped("STRING!")
+	assert.EqualError(t, err, "container: the resolver must be a function")
 }

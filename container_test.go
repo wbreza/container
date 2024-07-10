@@ -55,29 +55,16 @@ func TestContainer_Singleton(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestContainer_SingletonLazy(t *testing.T) {
-	err := instance.SingletonLazy(func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-
-	err = instance.Call(func(s1 Shape) {
-		s1.SetArea(666)
-	})
-	assert.NoError(t, err)
-
-	err = instance.Call(func(s2 Shape) {
-		a := s2.GetArea()
-		assert.Equal(t, a, 666)
-	})
-	assert.NoError(t, err)
-}
-
 func TestContainer_Singleton_With_Missing_Dependency_Resolve(t *testing.T) {
 	err := instance.Singleton(func(db Database) Shape {
 		return &Circle{a: 13}
 	})
-	assert.EqualError(t, err, "container: no concrete found for: container_test.Database")
+
+	assert.NoError(t, err)
+
+	var resolved Shape
+	err = instance.Resolve(&resolved)
+	assert.EqualError(t, err, "container: encountered error while making concrete for: container_test.Shape. Error encountered: container: no concrete found for: container_test.Database")
 }
 
 func TestContainer_Singleton_With_Resolve_That_Returns_Nothing(t *testing.T) {
@@ -85,36 +72,13 @@ func TestContainer_Singleton_With_Resolve_That_Returns_Nothing(t *testing.T) {
 	assert.Error(t, err, "container: resolver function signature is invalid")
 }
 
-func TestContainer_SingletonLazy_With_Resolve_That_Returns_Nothing(t *testing.T) {
-	err := instance.SingletonLazy(func() {})
-	assert.Error(t, err, "container: resolver function signature is invalid")
-}
-
 func TestContainer_Singleton_With_Resolve_That_Returns_Error(t *testing.T) {
-	err := instance.Singleton(func() (Shape, error) {
-		return nil, errors.New("app: error")
-	})
-	assert.Error(t, err, "app: error")
-}
-
-func TestContainer_SingletonLazy_With_Resolve_That_Returns_Error(t *testing.T) {
-	err := instance.SingletonLazy(func() (Shape, error) {
-		return nil, errors.New("app: error")
-	})
-	assert.NoError(t, err)
-
-	var s Shape
-	err = instance.Resolve(&s)
-	assert.Error(t, err, "app: error")
+	err := instance.Singleton("not a resolver")
+	assert.EqualError(t, err, "container: the resolver must be a function")
 }
 
 func TestContainer_Singleton_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
 	err := instance.Singleton("STRING!")
-	assert.EqualError(t, err, "container: the resolver must be a function")
-}
-
-func TestContainer_SingletonLazy_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
-	err := instance.SingletonLazy("STRING!")
 	assert.EqualError(t, err, "container: the resolver must be a function")
 }
 
@@ -131,23 +95,6 @@ func TestContainer_Singleton_With_Resolvable_Arguments(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestContainer_SingletonLazy_With_Resolvable_Arguments(t *testing.T) {
-	err := instance.SingletonLazy(func() Shape {
-		return &Circle{a: 666}
-	})
-	assert.NoError(t, err)
-
-	err = instance.SingletonLazy(func(s Shape) Database {
-		assert.Equal(t, s.GetArea(), 666)
-		return &MySQL{}
-	})
-	assert.NoError(t, err)
-
-	var s Shape
-	err = instance.Resolve(&s)
-	assert.NoError(t, err)
-}
-
 func TestContainer_Singleton_With_Non_Resolvable_Arguments(t *testing.T) {
 	instance.Reset()
 
@@ -157,29 +104,8 @@ func TestContainer_Singleton_With_Non_Resolvable_Arguments(t *testing.T) {
 	assert.EqualError(t, err, "container: resolver function signature is invalid - depends on abstract it returns")
 }
 
-func TestContainer_SingletonLazy_With_Non_Resolvable_Arguments(t *testing.T) {
-	instance.Reset()
-
-	err := instance.SingletonLazy(func(s Shape) Shape {
-		return &Circle{a: s.GetArea()}
-	})
-	assert.EqualError(t, err, "container: resolver function signature is invalid - depends on abstract it returns")
-}
-
 func TestContainer_NamedSingleton(t *testing.T) {
 	err := instance.NamedSingleton("theCircle", func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-
-	var sh Shape
-	err = instance.NamedResolve(&sh, "theCircle")
-	assert.NoError(t, err)
-	assert.Equal(t, sh.GetArea(), 13)
-}
-
-func TestContainer_NamedSingletonLazy(t *testing.T) {
-	err := instance.NamedSingletonLazy("theCircle", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -208,81 +134,26 @@ func TestContainer_Transient(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestContainer_TransientLazy(t *testing.T) {
-	err := instance.TransientLazy(func() Shape {
-		return &Circle{a: 666}
-	})
-	assert.NoError(t, err)
-
-	err = instance.Call(func(s1 Shape) {
-		s1.SetArea(13)
-	})
-	assert.NoError(t, err)
-
-	err = instance.Call(func(s2 Shape) {
-		a := s2.GetArea()
-		assert.Equal(t, a, 666)
-	})
-	assert.NoError(t, err)
-}
-
 func TestContainer_Transient_With_Resolve_That_Returns_Nothing(t *testing.T) {
 	err := instance.Transient(func() {})
 	assert.Error(t, err, "container: resolver function signature is invalid")
 }
 
-func TestContainer_TransientLazy_With_Resolve_That_Returns_Nothing(t *testing.T) {
-	err := instance.TransientLazy(func() {})
-	assert.Error(t, err, "container: resolver function signature is invalid")
-}
-
 func TestContainer_Transient_With_Resolve_That_Returns_Error(t *testing.T) {
 	err := instance.Transient(func() (Shape, error) {
-		return nil, errors.New("app: error")
+		return nil, errors.New("app: error resolving Shape")
 	})
-	assert.Error(t, err, "app: error")
 
-	firstCall := true
+	assert.NoError(t, err)
+
 	err = instance.Transient(func() (Database, error) {
-		if firstCall {
-			firstCall = false
-			return &MySQL{}, nil
-		}
-		return nil, errors.New("app: second call error")
+		return nil, errors.New("app: error resolving Database")
 	})
 	assert.NoError(t, err)
 
 	var db Database
 	err = instance.Resolve(&db)
-	assert.Error(t, err, "app: second call error")
-}
-
-func TestContainer_TransientLazy_With_Resolve_That_Returns_Error(t *testing.T) {
-	err := instance.TransientLazy(func() (Shape, error) {
-		return nil, errors.New("app: error")
-	})
-	assert.NoError(t, err)
-
-	var s Shape
-	err = instance.Resolve(&s)
-	assert.Error(t, err, "app: error")
-
-	firstCall := true
-	err = instance.TransientLazy(func() (Database, error) {
-		if firstCall {
-			firstCall = false
-			return &MySQL{}, nil
-		}
-		return nil, errors.New("app: second call error")
-	})
-	assert.NoError(t, err)
-
-	var db Database
-	err = instance.Resolve(&db)
-	assert.NoError(t, err)
-
-	err = instance.Resolve(&db)
-	assert.Error(t, err, "app: second call error")
+	assert.Error(t, err, "app: error resolving Database")
 }
 
 func TestContainer_Transient_With_Resolve_With_Invalid_Signature_It_Should_Fail(t *testing.T) {
@@ -292,27 +163,8 @@ func TestContainer_Transient_With_Resolve_With_Invalid_Signature_It_Should_Fail(
 	assert.Error(t, err, "container: resolver function signature is invalid")
 }
 
-func TestContainer_TransientLazy_With_Resolve_With_Invalid_Signature_It_Should_Fail(t *testing.T) {
-	err := instance.TransientLazy(func() (Shape, Database, error) {
-		return nil, nil, nil
-	})
-	assert.Error(t, err, "container: resolver function signature is invalid")
-}
-
 func TestContainer_NamedTransient(t *testing.T) {
 	err := instance.NamedTransient("theCircle", func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-
-	var sh Shape
-	err = instance.NamedResolve(&sh, "theCircle")
-	assert.NoError(t, err)
-	assert.Equal(t, sh.GetArea(), 13)
-}
-
-func TestContainer_NamedTransientLazy(t *testing.T) {
-	err := instance.NamedTransientLazy("theCircle", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -348,7 +200,7 @@ func TestContainer_Call_With_Multiple_Resolving(t *testing.T) {
 
 func TestContainer_Call_With_Dependency_Missing_In_Chain(t *testing.T) {
 	var instance = container.New()
-	err := instance.SingletonLazy(func() (Database, error) {
+	err := instance.Singleton(func() (Database, error) {
 		var s Shape
 		if err := instance.Resolve(&s); err != nil {
 			return nil, err
@@ -472,6 +324,32 @@ func TestContainer_Resolve_With_UnBounded_Reference_It_Should_Fail(t *testing.T)
 	assert.EqualError(t, err, "container: no concrete found for: container_test.Shape")
 }
 
+func TestContainer_Resolve_With_Error_Should_Not_Cache_Concrete(t *testing.T) {
+	c := container.New()
+
+	resolveCount := 0
+	err := c.Singleton(func() (Shape, error) {
+		resolveCount++
+		if resolveCount == 1 {
+			return nil, errors.New("first resolve error")
+		}
+
+		return &Circle{a: 5}, nil
+	})
+
+	assert.NoError(t, err)
+
+	var s Shape
+
+	err = c.Resolve(&s)
+	assert.Error(t, err, "first resolve error")
+	assert.Nil(t, s)
+
+	err = c.Resolve(&s)
+	assert.NoError(t, err)
+	assert.NotNil(t, s)
+}
+
 func TestContainer_Fill_With_Struct_Pointer(t *testing.T) {
 	err := instance.Singleton(func() Shape {
 		return &Circle{a: 5}
@@ -583,7 +461,7 @@ func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.NamedSingletonLazy("C", func() (Shape, error) {
+	err = instance.NamedSingleton("C", func() (Shape, error) {
 		var s Shape
 		if err := instance.NamedResolve(&s, "foo"); err != nil {
 			return nil, err

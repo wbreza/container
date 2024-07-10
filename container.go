@@ -24,7 +24,7 @@ func (b *binding) make(c Container) (interface{}, error) {
 	}
 
 	retVal, err := c.invoke(b.resolver)
-	if b.isSingleton {
+	if b.isSingleton && err == nil {
 		b.concrete = retVal
 	}
 
@@ -41,7 +41,7 @@ func New() Container {
 }
 
 // bind maps an abstraction to concrete and instantiates if it is a singleton binding.
-func (c Container) bind(resolver interface{}, name string, isSingleton bool, isLazy bool) error {
+func (c Container) bind(resolver interface{}, name string, isSingleton bool) error {
 	reflectedResolver := reflect.TypeOf(resolver)
 	if reflectedResolver.Kind() != reflect.Func {
 		return errors.New("container: the resolver must be a function")
@@ -57,20 +57,7 @@ func (c Container) bind(resolver interface{}, name string, isSingleton bool, isL
 		return err
 	}
 
-	var concrete interface{}
-	if !isLazy {
-		var err error
-		concrete, err = c.invoke(resolver)
-		if err != nil {
-			return err
-		}
-	}
-
-	if isSingleton {
-		c[reflectedResolver.Out(0)][name] = &binding{resolver: resolver, concrete: concrete, isSingleton: isSingleton}
-	} else {
-		c[reflectedResolver.Out(0)][name] = &binding{resolver: resolver, isSingleton: isSingleton}
-	}
+	c[reflectedResolver.Out(0)][name] = &binding{resolver: resolver, isSingleton: isSingleton}
 
 	return nil
 }
@@ -142,52 +129,24 @@ func (c Container) Reset() {
 // It takes a resolver function that returns the concrete, and its return type matches the abstraction (interface).
 // The resolver function can have arguments of abstraction that have been declared in the Container already.
 func (c Container) Singleton(resolver interface{}) error {
-	return c.bind(resolver, "", true, false)
-}
-
-// SingletonLazy binds an abstraction to concrete lazily in singleton mode.
-// The concrete is resolved only when the abstraction is resolved for the first time.
-// It takes a resolver function that returns the concrete, and its return type matches the abstraction (interface).
-// The resolver function can have arguments of abstraction that have been declared in the Container already.
-func (c Container) SingletonLazy(resolver interface{}) error {
-	return c.bind(resolver, "", true, true)
+	return c.bind(resolver, "", true)
 }
 
 // NamedSingleton binds a named abstraction to concrete in singleton mode.
 func (c Container) NamedSingleton(name string, resolver interface{}) error {
-	return c.bind(resolver, name, true, false)
-}
-
-// NamedSingleton binds a named abstraction to concrete lazily in singleton mode.
-// The concrete is resolved only when the abstraction is resolved for the first time.
-func (c Container) NamedSingletonLazy(name string, resolver interface{}) error {
-	return c.bind(resolver, name, true, true)
+	return c.bind(resolver, name, true)
 }
 
 // Transient binds an abstraction to concrete in transient mode.
 // It takes a resolver function that returns the concrete, and its return type matches the abstraction (interface).
 // The resolver function can have arguments of abstraction that have been declared in the Container already.
 func (c Container) Transient(resolver interface{}) error {
-	return c.bind(resolver, "", false, false)
-}
-
-// TransientLazy binds an abstraction to concrete lazily in transient mode.
-// Normally the resolver will be called during registration, but that is skipped in lazy mode.
-// It takes a resolver function that returns the concrete, and its return type matches the abstraction (interface).
-// The resolver function can have arguments of abstraction that have been declared in the Container already.
-func (c Container) TransientLazy(resolver interface{}) error {
-	return c.bind(resolver, "", false, true)
+	return c.bind(resolver, "", false)
 }
 
 // NamedTransient binds a named abstraction to concrete lazily in transient mode.
 func (c Container) NamedTransient(name string, resolver interface{}) error {
-	return c.bind(resolver, name, false, false)
-}
-
-// NamedTransient binds a named abstraction to concrete in transient mode.
-// Normally the resolver will be called during registration, but that is skipped in lazy mode.
-func (c Container) NamedTransientLazy(name string, resolver interface{}) error {
-	return c.bind(resolver, name, false, true)
+	return c.bind(resolver, name, false)
 }
 
 // Call takes a receiver function with one or more arguments of the abstractions (interfaces).

@@ -16,28 +16,10 @@ func TestSingleton(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestSingletonLazy(t *testing.T) {
-	container.Reset()
-
-	err := container.SingletonLazy(func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-}
-
 func TestNamedSingleton(t *testing.T) {
 	container.Reset()
 
 	err := container.NamedSingleton("rounded", func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-}
-
-func TestNamedSingletonLazy(t *testing.T) {
-	container.Reset()
-
-	err := container.NamedSingletonLazy("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -52,28 +34,10 @@ func TestTransient(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestTransientLazy(t *testing.T) {
-	container.Reset()
-
-	err := container.TransientLazy(func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-}
-
 func TestNamedTransient(t *testing.T) {
 	container.Reset()
 
 	err := container.NamedTransient("rounded", func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-}
-
-func TestNamedTransientLazy(t *testing.T) {
-	container.Reset()
-
-	err := container.NamedTransientLazy("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -110,7 +74,7 @@ func TestNamedResolve(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = container.NamedResolve(&s, "rounded")
+	err = container.ResolveNamed(&s, "rounded")
 	assert.NoError(t, err)
 }
 

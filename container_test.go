@@ -2,6 +2,7 @@ package container_test
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -759,4 +760,54 @@ func TestContainer_ResolvedNamedInstance_With_Invalid_Receiver(t *testing.T) {
 		return &MySQL{}
 	})
 	assert.EqualError(t, err, "container: cannot register a function as an instance")
+}
+
+func TestContainer_Validate_With_Empty(t *testing.T) {
+	c := container.New()
+	err := c.Validate()
+	assert.NoError(t, err)
+}
+
+func TestContainer_Validate_All_Valid(t *testing.T) {
+	c := container.New()
+	err := c.RegisterSingleton(func(s Shape) Database {
+		return &MySQL{}
+	})
+	assert.NoError(t, err)
+
+	err = c.RegisterSingleton(func() Shape {
+		return &Circle{a: 5}
+	})
+	assert.NoError(t, err)
+
+	err = c.Validate()
+	assert.NoError(t, err)
+}
+
+func TestContainer_Validate_With_Missing_Dependency(t *testing.T) {
+	c := container.New()
+	err := c.RegisterSingleton(func(db Database) Shape {
+		return &Circle{a: 5}
+	})
+
+	assert.NoError(t, err)
+	err = c.Validate()
+	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Database")
+}
+
+func TestContainer_ResolveAll(t *testing.T) {
+	c := container.New()
+	c.RegisterNamedSingleton("circle", func() Shape {
+		return &Circle{a: 5}
+	})
+
+	c.RegisterNamedSingleton("square", func() Shape {
+		return &Square{a: 10}
+	})
+
+	results := map[string]Shape{}
+	interfaceType := reflect.TypeOf((*Shape)(nil)).Elem()
+	err := c.ResolveAll(interfaceType, results)
+	assert.NoError(t, err)
+	assert.Len(t, results, 2)
 }

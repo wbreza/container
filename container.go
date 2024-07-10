@@ -239,6 +239,28 @@ func (c *Container) Resolve(abstraction interface{}) error {
 	return c.ResolvedNamed(abstraction, "")
 }
 
+// ResolveAll takes an abstraction and returns all the related concretes with their names.
+func (c *Container) ResolveAll(iface reflect.Type, abstraction interface{}) error {
+	if iface.Kind() != reflect.Interface {
+		return errors.New("container: invalid abstraction")
+	}
+
+	typeBindings, has := c.bindings[iface]
+	if !has {
+		return errors.New("container: no bindings found for: " + iface.String())
+	}
+
+	for name := range typeBindings {
+		if instance, err := c.make(iface, name); err == nil {
+			reflect.ValueOf(abstraction).SetMapIndex(reflect.ValueOf(name), reflect.ValueOf(instance))
+		} else {
+			return fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", iface.String(), err)
+		}
+	}
+
+	return nil
+}
+
 // ResolvedNamed takes abstraction and its name and fills it with the related concrete.
 func (c *Container) ResolvedNamed(abstraction interface{}, name string) error {
 	receiverType := reflect.TypeOf(abstraction)
@@ -300,6 +322,19 @@ func (c *Container) Fill(structure interface{}) error {
 				continue
 			} else {
 				return fmt.Errorf("container: encountered error while making %v field. Error encountered: %w", s.Type().Field(i).Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// Validate checks the container for any errors and ensures all registered types can be resolved.
+func (c *Container) Validate() error {
+	for t, binding := range c.bindings {
+		for name := range binding {
+			if _, err := c.make(t, name); err != nil {
+				return err
 			}
 		}
 	}

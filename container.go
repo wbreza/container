@@ -240,21 +240,21 @@ func (c *Container) Resolve(abstraction interface{}) error {
 }
 
 // ResolveAll takes an abstraction and returns all the related concretes with their names.
-func (c *Container) ResolveAll(iface reflect.Type, abstraction interface{}) error {
-	if iface.Kind() != reflect.Interface {
+func (c *Container) ResolveAll(interfaceType reflect.Type, abstraction interface{}) error {
+	if interfaceType.Kind() != reflect.Interface {
 		return errors.New("container: invalid abstraction")
 	}
 
-	typeBindings, has := c.bindings[iface]
+	typeBindings, has := c.bindings[interfaceType]
 	if !has {
-		return errors.New("container: no bindings found for: " + iface.String())
+		return errors.New("container: no bindings found for: " + interfaceType.String())
 	}
 
 	for name := range typeBindings {
-		if instance, err := c.make(iface, name); err == nil {
+		if instance, err := c.make(interfaceType, name); err == nil {
 			reflect.ValueOf(abstraction).SetMapIndex(reflect.ValueOf(name), reflect.ValueOf(instance))
 		} else {
-			return fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", iface.String(), err)
+			return fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", interfaceType.String(), err)
 		}
 	}
 

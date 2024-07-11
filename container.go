@@ -3,6 +3,7 @@
 package container
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -237,6 +238,25 @@ func (c *Container) Call(function interface{}) error {
 // Resolve takes an abstraction (reference of an interface type) and fills it with the related concrete.
 func (c *Container) Resolve(abstraction interface{}) error {
 	return c.ResolvedNamed(abstraction, "")
+}
+
+// ResolveWithContext takes an abstraction and a context and fills it with the related concrete.
+func (c *Container) ResolveWithContext(ctx context.Context, abstraction interface{}) error {
+	err := c.RegisterSingleton(func() context.Context {
+		return ctx
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := c.Resolve(abstraction); err != nil {
+		return err
+	}
+
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
+	delete(c.bindings, contextType)
+
+	return nil
 }
 
 // ResolveAll takes an abstraction and returns all the related concretes with their names.

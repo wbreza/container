@@ -1,6 +1,7 @@
 package container_test
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -754,6 +755,22 @@ func TestContainer_ResolveNamedInstance(t *testing.T) {
 	assert.Same(t, circle, resolvedCircle)
 }
 
+func TestContainer_ResolveInstance_As_Dependency(t *testing.T) {
+	c := container.New()
+	value := "value"
+	err := c.RegisterInstance(value)
+	assert.NoError(t, err)
+
+	err = c.RegisterSingleton(func(s string) Shape {
+		return &Circle{a: 5}
+	})
+	assert.NoError(t, err)
+
+	var s Shape
+	err = c.Resolve(&s)
+	assert.NoError(t, err)
+}
+
 func TestContainer_ResolvedNamedInstance_With_Invalid_Receiver(t *testing.T) {
 	c := container.New()
 	err := c.RegisterNamedInstance("circle", func() Database {
@@ -810,4 +827,21 @@ func TestContainer_ResolveAll(t *testing.T) {
 	err := c.ResolveAll(interfaceType, results)
 	assert.NoError(t, err)
 	assert.Len(t, results, 2)
+}
+
+func TestContainer_ResolveWithContext(t *testing.T) {
+	c := container.New()
+
+	ctx := context.Background()
+	var refCtx context.Context
+
+	c.RegisterSingleton(func(innerCtx context.Context) Shape {
+		refCtx = innerCtx
+		return &Circle{a: 5}
+	})
+
+	var s Shape
+	err := c.ResolveWithContext(ctx, &s)
+	assert.NoError(t, err)
+	assert.Equal(t, refCtx, ctx)
 }

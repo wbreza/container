@@ -17,7 +17,7 @@ jobs:
           - windows-latest
           - macos-latest
         go:
-          - 1.18
+          - 1.20
 
     runs-on: ${{ matrix.os }}
 

@@ -2,34 +2,34 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
+  workflow_dispatch:
 
-jobs:  
+jobs:
   test:
     strategy:
-        fail-fast: false
-        matrix:
-          os:
-            - ubuntu-latest
-          go:
-            - 1.17
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        go:
+          - 1.18
 
     runs-on: ${{ matrix.os }}
-    
-    steps:
-    - uses: actions/checkout@v2
 
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: ${{ matrix.go }}
-    
-    - name: Coveralls
-      env:
-        COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        go install github.com/mattn/goveralls@latest
-        goveralls -service=github
-      
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Coveralls
+        env:
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          go install github.com/mattn/goveralls@latest
+          goveralls -service=github

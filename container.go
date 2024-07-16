@@ -10,6 +10,19 @@ import (
 	"unsafe"
 )
 
+var (
+	// Errors encountered while registering bindings
+	ErrInvalidResolver    = errors.New("invalid resolver")
+	ErrInvalidAbstraction = errors.New("invalid abstraction")
+	ErrInvalidReceiver    = errors.New("invalid receiver")
+	ErrInvalidStructure   = errors.New("invalid structure")
+
+	// Errors encountered while resolving, calling or filling
+	ErrContextRequired  = errors.New("context is required. If you don't have a context pass 'context.Background()' or 'context.TODO()'")
+	ErrResolutionFailed = errors.New("failed making instance")
+	ErrBindingNotFound  = errors.New("no binding found")
+)
+
 // Container holds the bindings and provides methods to interact with them.
 // It is the entry point in the package.
 type Container struct {
@@ -47,7 +60,7 @@ func (c *Container) NewScope() (*Container, error) {
 func (c *Container) bind(resolver interface{}, name string, lifetime Lifetime) error {
 	reflectedResolver := reflect.TypeOf(resolver)
 	if reflectedResolver.Kind() != reflect.Func {
-		return errors.New("container: the resolver must be a function")
+		return fmt.Errorf("%w, the resolver must be a function", ErrInvalidResolver)
 	}
 
 	if reflectedResolver.NumOut() > 0 {
@@ -69,13 +82,13 @@ func (c *Container) validateResolverFunction(funcType reflect.Type) error {
 	retCount := funcType.NumOut()
 
 	if retCount == 0 || retCount > 2 {
-		return errors.New("container: resolver function signature is invalid - it must return abstract, or abstract and error")
+		return fmt.Errorf("%w, signature is invalid - it must return abstract, or abstract and error", ErrInvalidResolver)
 	}
 
 	resolveType := funcType.Out(0)
 	for i := 0; i < funcType.NumIn(); i++ {
 		if funcType.In(i) == resolveType {
-			return fmt.Errorf("container: resolver function signature is invalid - depends on abstract it returns")
+			return fmt.Errorf("%w, signature is invalid - depends on abstract it returns", ErrInvalidResolver)
 		}
 	}
 
@@ -119,7 +132,7 @@ func (c *Container) make(ctx context.Context, t reflect.Type, name string) (inte
 	}
 
 	if binding == nil {
-		return nil, errors.New("container: no binding found for: " + t.String())
+		return nil, fmt.Errorf("%w for abstraction '%s'", ErrBindingNotFound, t.String())
 	}
 
 	return binding.make(ctx, current)
@@ -136,16 +149,12 @@ func (c *Container) arguments(ctx context.Context, function interface{}) ([]refl
 		abstraction := reflectedFunction.In(i)
 
 		if abstraction.Implements(contextType) {
-			if ctx == noContext() {
-				return nil, fmt.Errorf("container: context is required making instance: %s. Ensure you are using the 'WithContext(...)' overloads.", abstraction.String())
-			}
-
 			arguments[i] = reflect.ValueOf(ctx)
 		} else {
 			if instance, err := c.make(ctx, abstraction, ""); err == nil {
 				arguments[i] = reflect.ValueOf(instance)
 			} else {
-				return nil, fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", abstraction.String(), err)
+				return nil, fmt.Errorf("%w for type '%s', Error: %w", ErrResolutionFailed, abstraction.String(), err)
 			}
 		}
 	}
@@ -170,7 +179,7 @@ func (c *Container) RegisterNamedInstance(name string, instance interface{}) err
 	t := reflect.TypeOf(instance)
 
 	if t.Kind() == reflect.Func {
-		return errors.New("container: cannot register a function as an instance")
+		return fmt.Errorf("%w, cannot register a function as an instance", ErrInvalidResolver)
 	}
 
 	c.bindings[t] = map[string]*binding{
@@ -217,24 +226,16 @@ func (c *Container) RegisterNamedScoped(name string, resolver interface{}) error
 	return c.bind(resolver, name, Scoped)
 }
 
-func (c *Container) Call(function interface{}) error {
-	return c.call(noContext(), function)
-}
-
-func (c *Container) CallWithContext(ctx context.Context, function interface{}) error {
-	if ctx == nil {
-		return errors.New("container: context is required when calling with context")
-	}
-
-	return c.call(ctx, function)
-}
-
 // Call takes a receiver function with one or more arguments of the abstractions (interfaces).
 // It invokes the receiver function and passes the related concretes.
-func (c *Container) call(ctx context.Context, function interface{}) error {
+func (c *Container) Call(ctx context.Context, function interface{}) error {
+	if ctx == nil {
+		return ErrContextRequired
+	}
+
 	receiverType := reflect.TypeOf(function)
 	if receiverType == nil || receiverType.Kind() != reflect.Func {
-		return errors.New("container: invalid function")
+		return ErrInvalidReceiver
 	}
 
 	arguments, err := c.arguments(ctx, function)
@@ -255,36 +256,27 @@ func (c *Container) call(ctx context.Context, function interface{}) error {
 		}
 	}
 
-	return errors.New("container: receiver function signature is invalid")
-}
-
-// Resolve takes an abstraction (reference of an interface type) and fills it with the related concrete.
-func (c *Container) Resolve(abstraction interface{}) error {
-	return c.resolve(noContext(), abstraction, "")
+	return ErrInvalidReceiver
 }
 
 // ResolveWithContext takes an abstraction and a context and fills it with the related concrete.
-func (c *Container) ResolveWithContext(ctx context.Context, abstraction interface{}) error {
-	if ctx == nil {
-		return errors.New("container: context is required when resolving with context")
-	}
-	return c.resolve(ctx, abstraction, "")
+func (c *Container) Resolve(ctx context.Context, abstraction interface{}) error {
+	return c.ResolvedNamed(ctx, abstraction, "")
 }
 
 // ResolvedNamed takes abstraction and its name and fills it with the related concrete.
-func (c *Container) ResolvedNamed(abstraction interface{}, name string) error {
-	return c.resolve(noContext(), abstraction, name)
-}
+func (c *Container) ResolvedNamed(ctx context.Context, abstraction interface{}, name string) error {
+	if ctx == nil {
+		return ErrContextRequired
+	}
 
-func (c *Container) resolve(ctx context.Context, abstraction interface{}, name string) error {
 	receiverType := reflect.TypeOf(abstraction)
 	if receiverType == nil {
-		return errors.New("container: invalid abstraction")
+		return ErrInvalidAbstraction
 	}
 
 	if receiverType.Kind() != reflect.Ptr {
-		return errors.New("container: invalid abstraction")
-
+		return ErrInvalidAbstraction
 	}
 
 	elem := receiverType.Elem()
@@ -293,24 +285,32 @@ func (c *Container) resolve(ctx context.Context, abstraction interface{}, name s
 		reflect.ValueOf(abstraction).Elem().Set(reflect.ValueOf(instance))
 		return nil
 	} else {
-		return fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", elem.String(), err)
+		if name == "" {
+			return fmt.Errorf("%w for type '%s'. Error: %w", ErrResolutionFailed, elem.String(), err)
+		} else {
+			return fmt.Errorf("%w for type '%s' with name '%s'. Error: %w", ErrResolutionFailed, elem.String(), name, err)
+		}
 	}
 }
 
 // Fill takes a struct and resolves the fields with the tag `container:"inject"`
-func (c *Container) Fill(structure interface{}) error {
+func (c *Container) Fill(ctx context.Context, structure interface{}) error {
+	if ctx == nil {
+		return ErrContextRequired
+	}
+
 	receiverType := reflect.TypeOf(structure)
 	if receiverType == nil {
-		return errors.New("container: invalid structure")
+		return ErrInvalidStructure
 	}
 
 	if receiverType.Kind() != reflect.Ptr {
-		return errors.New("container: invalid structure")
+		return ErrInvalidStructure
 	}
 
 	elem := receiverType.Elem()
 	if elem.Kind() != reflect.Struct {
-		return errors.New("container: invalid structure")
+		return ErrInvalidStructure
 	}
 
 	s := reflect.ValueOf(structure).Elem()
@@ -326,16 +326,16 @@ func (c *Container) Fill(structure interface{}) error {
 			} else if t == "name" {
 				name = s.Type().Field(i).Name
 			} else {
-				return fmt.Errorf("container: %v has an invalid struct tag", s.Type().Field(i).Name)
+				return fmt.Errorf("%w, %v has an invalid struct tag", ErrInvalidStructure, s.Type().Field(i).Name)
 			}
 
-			if instance, err := c.make(noContext(), f.Type(), name); err == nil {
+			if instance, err := c.make(ctx, f.Type(), name); err == nil {
 				ptr := reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem()
 				ptr.Set(reflect.ValueOf(instance))
 
 				continue
 			} else {
-				return fmt.Errorf("container: encountered error while making %v field. Error encountered: %w", s.Type().Field(i).Name, err)
+				return fmt.Errorf("%w for field '%v', Error: %w", ErrResolutionFailed, s.Type().Field(i).Name, err)
 			}
 		}
 	}
@@ -344,10 +344,14 @@ func (c *Container) Fill(structure interface{}) error {
 }
 
 // Validate checks the container for any errors and ensures all registered types can be resolved.
-func (c *Container) Validate() error {
+func (c *Container) Validate(ctx context.Context) error {
+	if ctx == nil {
+		return ErrContextRequired
+	}
+
 	for t, binding := range c.bindings {
 		for name := range binding {
-			if _, err := c.make(noContext(), t, name); err != nil {
+			if _, err := c.make(ctx, t, name); err != nil {
 				return err
 			}
 		}

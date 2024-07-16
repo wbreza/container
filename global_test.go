@@ -1,6 +1,7 @@
 package container_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,7 +79,7 @@ func TestRegisterNamedScoped(t *testing.T) {
 func TestCall(t *testing.T) {
 	container.Reset()
 
-	err := container.Call(func() {})
+	err := container.Call(context.Background(), func() {})
 	assert.NoError(t, err)
 }
 
@@ -92,7 +93,7 @@ func TestResolve(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = container.Resolve(&s)
+	err = container.Resolve(context.Background(), &s)
 	assert.NoError(t, err)
 }
 
@@ -106,7 +107,7 @@ func TestResolveNamed(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = container.ResolveNamed(&s, "rounded")
+	err = container.ResolveNamed(context.Background(), &s, "rounded")
 	assert.NoError(t, err)
 }
 
@@ -122,6 +123,6 @@ func TestFill(t *testing.T) {
 		s Shape `Global:"type"`
 	}{}
 
-	err = container.Fill(&myApp)
+	err = container.Fill(context.Background(), &myApp)
 	assert.NoError(t, err)
 }

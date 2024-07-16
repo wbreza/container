@@ -1,5 +1,7 @@
 package container
 
+import "context"
+
 // MustRegisterInstance wraps the `RegisterInstance` method and panics on errors instead of returning the errors.
 func MustRegisterInstance(c *Container, instance interface{}) {
 	if err := c.RegisterInstance(instance); err != nil {
@@ -57,29 +59,29 @@ func MustRegisterNamedScoped(c *Container, name string, resolver interface{}) {
 }
 
 // MustCall wraps the `Call` method and panics on errors instead of returning the errors.
-func MustCall(c *Container, receiver interface{}) {
-	if err := c.Call(receiver); err != nil {
+func MustCall(ctx context.Context, c *Container, receiver interface{}) {
+	if err := c.Call(ctx, receiver); err != nil {
 		panic(err)
 	}
 }
 
 // MustResolve wraps the `Resolve` method and panics on errors instead of returning the errors.
-func MustResolve(c *Container, abstraction interface{}) {
-	if err := c.Resolve(abstraction); err != nil {
+func MustResolve(ctx context.Context, c *Container, abstraction interface{}) {
+	if err := c.Resolve(ctx, abstraction); err != nil {
 		panic(err)
 	}
 }
 
 // MustNamedResolve wraps the `NamedResolve` method and panics on errors instead of returning the errors.
-func MustNamedResolve(c *Container, abstraction interface{}, name string) {
-	if err := c.ResolvedNamed(abstraction, name); err != nil {
+func MustNamedResolve(ctx context.Context, c *Container, abstraction interface{}, name string) {
+	if err := c.ResolvedNamed(ctx, abstraction, name); err != nil {
 		panic(err)
 	}
 }
 
 // MustFill wraps the `Fill` method and panics on errors instead of returning the errors.
-func MustFill(c *Container, receiver interface{}) {
-	if err := c.Fill(receiver); err != nil {
+func MustFill(ctx context.Context, c *Container, receiver interface{}) {
+	if err := c.Fill(ctx, receiver); err != nil {
 		panic(err)
 	}
 }

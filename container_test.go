@@ -81,12 +81,12 @@ func TestContainer_RegisterSingleton(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s1 Shape) {
+	err = instance.Call(context.Background(), func(s1 Shape) {
 		s1.SetArea(666)
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s2 Shape) {
+	err = instance.Call(context.Background(), func(s2 Shape) {
 		a := s2.GetArea()
 		assert.Equal(t, a, 666)
 	})
@@ -101,8 +101,9 @@ func TestContainer_RegisterSingleton_With_Missing_Dependency_Resolve(t *testing.
 	assert.NoError(t, err)
 
 	var resolved Shape
-	err = instance.Resolve(&resolved)
-	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Database")
+	err = instance.Resolve(context.Background(), &resolved)
+	assert.ErrorIs(t, err, container.ErrResolutionFailed)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
 func TestContainer_RegisterSingleton_With_Resolve_That_Returns_Nothing(t *testing.T) {
@@ -112,12 +113,12 @@ func TestContainer_RegisterSingleton_With_Resolve_That_Returns_Nothing(t *testin
 
 func TestContainer_RegisterSingleton_With_Resolve_That_Returns_Error(t *testing.T) {
 	err := instance.RegisterSingleton("not a resolver")
-	assert.EqualError(t, err, "container: the resolver must be a function")
+	assert.ErrorIs(t, err, container.ErrInvalidResolver)
 }
 
 func TestContainer_RegisterSingleton_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
 	err := instance.RegisterSingleton("STRING!")
-	assert.EqualError(t, err, "container: the resolver must be a function")
+	assert.ErrorIs(t, err, container.ErrInvalidResolver)
 }
 
 func TestContainer_RegisterSingleton_With_Resolvable_Arguments(t *testing.T) {
@@ -139,7 +140,7 @@ func TestContainer_RegisterSingleton_With_Non_Resolvable_Arguments(t *testing.T)
 	err := instance.RegisterSingleton(func(s Shape) Shape {
 		return &Circle{a: s.GetArea()}
 	})
-	assert.EqualError(t, err, "container: resolver function signature is invalid - depends on abstract it returns")
+	assert.ErrorIs(t, err, container.ErrInvalidResolver)
 }
 
 func TestContainer_RegisterNamedSingleton(t *testing.T) {
@@ -149,7 +150,7 @@ func TestContainer_RegisterNamedSingleton(t *testing.T) {
 	assert.NoError(t, err)
 
 	var sh Shape
-	err = instance.ResolvedNamed(&sh, "theCircle")
+	err = instance.ResolvedNamed(context.Background(), &sh, "theCircle")
 	assert.NoError(t, err)
 	assert.Equal(t, sh.GetArea(), 13)
 }
@@ -160,12 +161,12 @@ func TestContainer_RegisterTransient(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s1 Shape) {
+	err = instance.Call(context.Background(), func(s1 Shape) {
 		s1.SetArea(13)
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s2 Shape) {
+	err = instance.Call(context.Background(), func(s2 Shape) {
 		a := s2.GetArea()
 		assert.Equal(t, a, 666)
 	})
@@ -190,7 +191,7 @@ func TestContainer_RegisterTransient_With_Resolve_That_Returns_Error(t *testing.
 	assert.NoError(t, err)
 
 	var db Database
-	err = instance.Resolve(&db)
+	err = instance.Resolve(context.Background(), &db)
 	assert.Error(t, err, "app: error resolving Database")
 }
 
@@ -208,7 +209,7 @@ func TestContainer_RegisterNamedTransient(t *testing.T) {
 	assert.NoError(t, err)
 
 	var sh Shape
-	err = instance.ResolvedNamed(&sh, "theCircle")
+	err = instance.ResolvedNamed(context.Background(), &sh, "theCircle")
 	assert.NoError(t, err)
 	assert.Equal(t, sh.GetArea(), 13)
 }
@@ -224,7 +225,7 @@ func TestContainer_Call_With_Multiple_Resolving(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s Shape, m Database) {
+	err = instance.Call(context.Background(), func(s Shape, m Database) {
 		if _, ok := s.(*Circle); !ok {
 			t.Error("Expected Circle")
 		}
@@ -240,24 +241,25 @@ func TestContainer_Call_With_Dependency_Missing_In_Chain(t *testing.T) {
 	var instance = container.New()
 	err := instance.RegisterSingleton(func() (Database, error) {
 		var s Shape
-		if err := instance.Resolve(&s); err != nil {
+		if err := instance.Resolve(context.Background(), &s); err != nil {
 			return nil, err
 		}
 		return &MySQL{}, nil
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(m Database) {
+	err = instance.Call(context.Background(), func(m Database) {
 		if _, ok := m.(*MySQL); !ok {
 			t.Error("Expected MySQL")
 		}
 	})
-	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Shape")
+	assert.ErrorIs(t, err, container.ErrResolutionFailed)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
 func TestContainer_Call_With_Unsupported_Receiver_It_Should_Fail(t *testing.T) {
-	err := instance.Call("STRING!")
-	assert.EqualError(t, err, "container: invalid function")
+	err := instance.Call(context.Background(), "STRING!")
+	assert.ErrorIs(t, err, container.ErrInvalidReceiver)
 }
 
 func TestContainer_Call_With_Second_UnBounded_Argument(t *testing.T) {
@@ -268,8 +270,9 @@ func TestContainer_Call_With_Second_UnBounded_Argument(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s Shape, d Database) {})
-	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Database")
+	err = instance.Call(context.Background(), func(s Shape, d Database) {})
+	assert.ErrorIs(t, err, container.ErrResolutionFailed)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
 func TestContainer_Call_With_A_Returning_Error(t *testing.T) {
@@ -280,7 +283,7 @@ func TestContainer_Call_With_A_Returning_Error(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s Shape) error {
+	err = instance.Call(context.Background(), func(s Shape) error {
 		return errors.New("app: some context error")
 	})
 	assert.EqualError(t, err, "app: some context error")
@@ -294,7 +297,7 @@ func TestContainer_Call_With_A_Returning_Nil_Error(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s Shape) error {
+	err = instance.Call(context.Background(), func(s Shape) error {
 		return nil
 	})
 	assert.Nil(t, err)
@@ -308,10 +311,10 @@ func TestContainer_Call_With_Invalid_Signature(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = instance.Call(func(s Shape) (int, error) {
+	err = instance.Call(context.Background(), func(s Shape) (int, error) {
 		return 13, errors.New("app: some context error")
 	})
-	assert.EqualError(t, err, "container: receiver function signature is invalid")
+	assert.ErrorIs(t, err, container.ErrInvalidReceiver)
 }
 
 func TestContainer_Resolve_With_Reference_As_Resolver(t *testing.T) {
@@ -330,13 +333,13 @@ func TestContainer_Resolve_With_Reference_As_Resolver(t *testing.T) {
 		d Database
 	)
 
-	err = instance.Resolve(&s)
+	err = instance.Resolve(context.Background(), &s)
 	assert.NoError(t, err)
 	if _, ok := s.(*Circle); !ok {
 		t.Error("Expected Circle")
 	}
 
-	err = instance.Resolve(&d)
+	err = instance.Resolve(context.Background(), &d)
 	assert.NoError(t, err)
 	if _, ok := d.(*MySQL); !ok {
 		t.Error("Expected MySQL")
@@ -344,22 +347,22 @@ func TestContainer_Resolve_With_Reference_As_Resolver(t *testing.T) {
 }
 
 func TestContainer_Resolve_With_Unsupported_Receiver_It_Should_Fail(t *testing.T) {
-	err := instance.Resolve("STRING!")
-	assert.EqualError(t, err, "container: invalid abstraction")
+	err := instance.Resolve(context.Background(), "STRING!")
+	assert.ErrorIs(t, err, container.ErrInvalidAbstraction)
 }
 
 func TestContainer_Resolve_With_NonReference_Receiver_It_Should_Fail(t *testing.T) {
 	var s Shape
-	err := instance.Resolve(s)
-	assert.EqualError(t, err, "container: invalid abstraction")
+	err := instance.Resolve(context.Background(), s)
+	assert.ErrorIs(t, err, container.ErrInvalidAbstraction)
 }
 
 func TestContainer_Resolve_With_UnBounded_Reference_It_Should_Fail(t *testing.T) {
 	instance.Reset()
 
 	var s Shape
-	err := instance.Resolve(&s)
-	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Shape")
+	err := instance.Resolve(context.Background(), &s)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
 func TestContainer_Resolve_With_Error_Should_Not_Cache_Concrete(t *testing.T) {
@@ -379,11 +382,11 @@ func TestContainer_Resolve_With_Error_Should_Not_Cache_Concrete(t *testing.T) {
 
 	var s Shape
 
-	err = c.Resolve(&s)
+	err = c.Resolve(context.Background(), &s)
 	assert.Error(t, err, "first resolve error")
 	assert.Nil(t, s)
 
-	err = c.Resolve(&s)
+	err = c.Resolve(context.Background(), &s)
 	assert.NoError(t, err)
 	assert.NotNil(t, s)
 }
@@ -411,7 +414,7 @@ func TestContainer_Fill_With_Struct_Pointer(t *testing.T) {
 		X string
 	}{}
 
-	err = instance.Fill(&myApp)
+	err = instance.Fill(context.Background(), &myApp)
 	assert.NoError(t, err)
 
 	assert.IsType(t, &Circle{}, myApp.S)
@@ -435,7 +438,7 @@ func TestContainer_Fill_Unexported_With_Struct_Pointer(t *testing.T) {
 		y int
 	}{}
 
-	err = instance.Fill(&myApp)
+	err = instance.Fill(context.Background(), &myApp)
 	assert.NoError(t, err)
 
 	assert.IsType(t, &Circle{}, myApp.s)
@@ -454,8 +457,9 @@ func TestContainer_Fill_With_Invalid_Field_It_Should_Fail(t *testing.T) {
 
 	myApp := App{}
 
-	err = instance.Fill(&myApp)
-	assert.Contains(t, err.Error(), "container: encountered error while making S field")
+	err = instance.Fill(context.Background(), &myApp)
+	assert.ErrorIs(t, err, container.ErrResolutionFailed)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
 func TestContainer_Fill_With_Invalid_Tag_It_Should_Fail(t *testing.T) {
@@ -465,8 +469,8 @@ func TestContainer_Fill_With_Invalid_Tag_It_Should_Fail(t *testing.T) {
 
 	myApp := App{}
 
-	err := instance.Fill(&myApp)
-	assert.EqualError(t, err, "container: S has an invalid struct tag")
+	err := instance.Fill(context.Background(), &myApp)
+	assert.ErrorIs(t, err, container.ErrInvalidStructure)
 }
 
 func TestContainer_Fill_With_Invalid_Field_Name_It_Should_Fail(t *testing.T) {
@@ -476,20 +480,21 @@ func TestContainer_Fill_With_Invalid_Field_Name_It_Should_Fail(t *testing.T) {
 
 	myApp := App{}
 
-	err := instance.Fill(&myApp)
-	assert.Contains(t, err.Error(), "container: encountered error while making S field")
+	err := instance.Fill(context.Background(), &myApp)
+	assert.ErrorIs(t, err, container.ErrResolutionFailed)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
 func TestContainer_Fill_With_Invalid_Struct_It_Should_Fail(t *testing.T) {
 	invalidStruct := 0
-	err := instance.Fill(&invalidStruct)
-	assert.EqualError(t, err, "container: invalid structure")
+	err := instance.Fill(context.Background(), &invalidStruct)
+	assert.ErrorIs(t, err, container.ErrInvalidStructure)
 }
 
 func TestContainer_Fill_With_Invalid_Pointer_It_Should_Fail(t *testing.T) {
 	var s Shape
-	err := instance.Fill(s)
-	assert.EqualError(t, err, "container: invalid structure")
+	err := instance.Fill(context.Background(), s)
+	assert.ErrorIs(t, err, container.ErrInvalidStructure)
 }
 
 func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
@@ -501,7 +506,7 @@ func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 
 	err = instance.RegisterNamedSingleton("C", func() (Shape, error) {
 		var s Shape
-		if err := instance.ResolvedNamed(&s, "foo"); err != nil {
+		if err := instance.ResolvedNamed(context.Background(), &s, "foo"); err != nil {
 			return nil, err
 		}
 		return &Circle{a: 5}, nil
@@ -520,8 +525,9 @@ func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 		X string
 	}{}
 
-	err = instance.Fill(&myApp)
-	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Shape")
+	err = instance.Fill(context.Background(), &myApp)
+	assert.ErrorIs(t, err, container.ErrResolutionFailed)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
 func TestContainer_ResolveScoped_Is_Same_Instance_Within_Scope(t *testing.T) {
@@ -535,11 +541,11 @@ func TestContainer_ResolveScoped_Is_Same_Instance_Within_Scope(t *testing.T) {
 	assert.NoError(t, err)
 
 	var database1 Database
-	err = scope.Resolve(&database1)
+	err = scope.Resolve(context.Background(), &database1)
 	assert.NoError(t, err)
 
 	var database2 Database
-	err = scope.Resolve(&database2)
+	err = scope.Resolve(context.Background(), &database2)
 	assert.NoError(t, err)
 
 	// Both instances are resolved from the same scope so the same cached instance should be returned for both.
@@ -554,12 +560,12 @@ func TestContainer_ResolveScoped_At_Root_Acts_Like_Singleton(t *testing.T) {
 	})
 
 	var db1 Database
-	err := root.Resolve(&db1)
+	err := root.Resolve(context.Background(), &db1)
 	assert.NoError(t, err)
 	assert.NotNil(t, db1)
 
 	var db2 Database
-	err = root.Resolve(&db2)
+	err = root.Resolve(context.Background(), &db2)
 	assert.NoError(t, err)
 	assert.NotNil(t, db2)
 
@@ -588,14 +594,14 @@ func TestContainer_ResolveScoped_With_Singleton_Dependency(t *testing.T) {
 	assert.NoError(t, err)
 
 	var database1 Database
-	err = scope1.Resolve(&database1)
+	err = scope1.Resolve(context.Background(), &database1)
 	assert.NoError(t, err)
 
 	scope2, err := root.NewScope()
 	assert.NoError(t, err)
 
 	var database2 Database
-	err = scope2.Resolve(&database2)
+	err = scope2.Resolve(context.Background(), &database2)
 	assert.NoError(t, err)
 
 	assert.NotSame(t, database1, database2)
@@ -623,14 +629,14 @@ func TestContainer_ResolveScoped_With_Transient_Dependency(t *testing.T) {
 	assert.NoError(t, err)
 
 	var database1 Database
-	err = scope1.Resolve(&database1)
+	err = scope1.Resolve(context.Background(), &database1)
 	assert.NoError(t, err)
 
 	scope2, err := root.NewScope()
 	assert.NoError(t, err)
 
 	var database2 Database
-	err = scope2.Resolve(&database2)
+	err = scope2.Resolve(context.Background(), &database2)
 	assert.NoError(t, err)
 
 	assert.NotSame(t, database1, database2)
@@ -657,7 +663,7 @@ func TestContainer_Fill_With_Scoped_Elements(t *testing.T) {
 
 	var req1 request
 
-	err = scope.Fill(&req1)
+	err = scope.Fill(context.Background(), &req1)
 	assert.NoError(t, err)
 	assert.NotNil(t, req1)
 
@@ -665,7 +671,7 @@ func TestContainer_Fill_With_Scoped_Elements(t *testing.T) {
 	assert.IsType(t, &Circle{}, req1.circle)
 
 	var req2 request
-	err = scope.Fill(&req2)
+	err = scope.Fill(context.Background(), &req2)
 	assert.NoError(t, err)
 	assert.NotNil(t, req2)
 
@@ -684,7 +690,7 @@ func TestContainer_Call_With_Scoped_Elements(t *testing.T) {
 	assert.NoError(t, err)
 
 	// First call should already have area set to 5 from the resolver
-	err = scope.Call(func(s1 Shape) {
+	err = scope.Call(context.Background(), func(s1 Shape) {
 		assert.Equal(t, 5, s1.GetArea())
 		s1.SetArea(20)
 	})
@@ -692,7 +698,7 @@ func TestContainer_Call_With_Scoped_Elements(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Second call should have the area set to 20 from the previous call
-	err = scope.Call(func(s2 Shape) {
+	err = scope.Call(context.Background(), func(s2 Shape) {
 		assert.Equal(t, 20, s2.GetArea())
 	})
 
@@ -706,7 +712,7 @@ func TestContainer_RegisterScoped_With_Resolve_That_Returns_Nothing(t *testing.T
 
 func TestContainer_RegisterScoped_With_NonFunction_Resolver_It_Should_Fail(t *testing.T) {
 	err := instance.RegisterScoped("STRING!")
-	assert.EqualError(t, err, "container: the resolver must be a function")
+	assert.ErrorIs(t, err, container.ErrInvalidResolver)
 }
 
 func TestContainer_ResolveInstance(t *testing.T) {
@@ -716,7 +722,7 @@ func TestContainer_ResolveInstance(t *testing.T) {
 	assert.NoError(t, err)
 
 	var resolvedCircle *Circle
-	err = c.Resolve(&resolvedCircle)
+	err = c.Resolve(context.Background(), &resolvedCircle)
 	assert.NoError(t, err)
 	assert.Same(t, circle, resolvedCircle)
 }
@@ -726,7 +732,7 @@ func TestContainer_ResolveInstance_With_Invalid_Receiver(t *testing.T) {
 	err := c.RegisterInstance(func() Database {
 		return &MySQL{}
 	})
-	assert.EqualError(t, err, "container: cannot register a function as an instance")
+	assert.ErrorIs(t, err, container.ErrInvalidResolver)
 }
 
 func TestContainer_ResolveInstance_With_Value(t *testing.T) {
@@ -736,7 +742,7 @@ func TestContainer_ResolveInstance_With_Value(t *testing.T) {
 	assert.NoError(t, err)
 
 	var resolvedInt int
-	err = c.Resolve(&resolvedInt)
+	err = c.Resolve(context.Background(), &resolvedInt)
 	assert.NoError(t, err)
 
 	assert.Equal(t, i, resolvedInt)
@@ -749,7 +755,7 @@ func TestContainer_ResolveNamedInstance(t *testing.T) {
 	assert.NoError(t, err)
 
 	var resolvedCircle *Circle
-	err = c.ResolvedNamed(&resolvedCircle, "circle")
+	err = c.ResolvedNamed(context.Background(), &resolvedCircle, "circle")
 	assert.NoError(t, err)
 	assert.Same(t, circle, resolvedCircle)
 }
@@ -766,7 +772,7 @@ func TestContainer_ResolveInstance_As_Dependency(t *testing.T) {
 	assert.NoError(t, err)
 
 	var s Shape
-	err = c.Resolve(&s)
+	err = c.Resolve(context.Background(), &s)
 	assert.NoError(t, err)
 }
 
@@ -775,12 +781,12 @@ func TestContainer_ResolvedNamedInstance_With_Invalid_Receiver(t *testing.T) {
 	err := c.RegisterNamedInstance("circle", func() Database {
 		return &MySQL{}
 	})
-	assert.EqualError(t, err, "container: cannot register a function as an instance")
+	assert.ErrorIs(t, err, container.ErrInvalidResolver)
 }
 
 func TestContainer_Validate_With_Empty(t *testing.T) {
 	c := container.New()
-	err := c.Validate()
+	err := c.Validate(context.Background())
 	assert.NoError(t, err)
 }
 
@@ -796,7 +802,7 @@ func TestContainer_Validate_All_Valid(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = c.Validate()
+	err = c.Validate(context.Background())
 	assert.NoError(t, err)
 }
 
@@ -807,11 +813,12 @@ func TestContainer_Validate_With_Missing_Dependency(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	err = c.Validate()
-	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Database")
+	err = c.Validate(context.Background())
+	assert.ErrorIs(t, err, container.ErrResolutionFailed)
+	assert.ErrorIs(t, err, container.ErrBindingNotFound)
 }
 
-func TestContainer_ResolveWithContext(t *testing.T) {
+func TestContainer_Resolve_With_Custom_Context(t *testing.T) {
 	c := container.New()
 
 	ctx := context.Background()
@@ -823,21 +830,21 @@ func TestContainer_ResolveWithContext(t *testing.T) {
 	})
 
 	var s Shape
-	err := c.ResolveWithContext(ctx, &s)
+	err := c.Resolve(ctx, &s)
 	assert.NoError(t, err)
 	assert.Equal(t, refCtx, ctx)
 }
 
-func TestContainer_ResolveWithContext_Nil_Context(t *testing.T) {
+func TestContainer_Resolve_Nil_Context(t *testing.T) {
 	c := container.New()
 
 	var s Shape
-	err := c.ResolveWithContext(nil, &s)
-	assert.EqualError(t, err, "container: context is required when resolving with context")
+	err := c.Resolve(nil, &s)
+	assert.ErrorIs(t, err, container.ErrContextRequired)
 	assert.Nil(t, s)
 }
 
-func TestContainer_CallWithContext(t *testing.T) {
+func TestContainer_Call_With_Custom_Context(t *testing.T) {
 	c := container.New()
 
 	ctx := context.Background()
@@ -848,7 +855,7 @@ func TestContainer_CallWithContext(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	err = c.CallWithContext(ctx, func(refCtx context.Context, s Shape) {
+	err = c.Call(ctx, func(refCtx context.Context, s Shape) {
 		assert.Equal(t, refCtx, ctx)
 		assert.NotNil(t, s)
 	})
@@ -856,30 +863,14 @@ func TestContainer_CallWithContext(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestContainer_CallWithContext_Nil_Context(t *testing.T) {
+func TestContainer_Call_Nil_Context(t *testing.T) {
 	c := container.New()
 
-	err := c.CallWithContext(nil, func(s Shape) {
+	err := c.Call(nil, func(s Shape) {
 		assert.NotNil(t, s)
 	})
 
-	assert.EqualError(t, err, "container: context is required when calling with context")
-}
-
-func TestContainer_Call_Missing_Context(t *testing.T) {
-	c := container.New()
-
-	err := c.RegisterSingleton(func(ctx context.Context) Shape {
-		return &Circle{a: 5}
-	})
-
-	assert.NoError(t, err)
-
-	err = c.Call(func(ctx context.Context) {
-		assert.Nil(t, ctx)
-	})
-
-	assert.EqualError(t, err, "container: context is required making instance: context.Context. Ensure you are using the 'WithContext(...)' overloads.")
+	assert.ErrorIs(t, err, container.ErrContextRequired)
 }
 
 func TestContainer_NewScope_Nested_Scopes(t *testing.T) {
@@ -896,12 +887,12 @@ func TestContainer_NewScope_Nested_Scopes(t *testing.T) {
 
 	// Resolve the same type twice, since it's scoped, the resolver should only one once, the second time we just return the cached instance.
 	var resolved1 Shape
-	err = c.Resolve(&resolved1)
+	err = c.Resolve(context.Background(), &resolved1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, called)
 
 	var resolved2 Shape
-	err = c.Resolve(&resolved2)
+	err = c.Resolve(context.Background(), &resolved2)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, called)
 	assert.Same(t, resolved1, resolved2)
@@ -911,12 +902,12 @@ func TestContainer_NewScope_Nested_Scopes(t *testing.T) {
 	assert.NoError(t, err)
 
 	var resolved3 Shape
-	err = sub.Resolve(&resolved3)
+	err = sub.Resolve(context.Background(), &resolved3)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, called)
 
 	var resolved4 Shape
-	err = sub.Resolve(&resolved4)
+	err = sub.Resolve(context.Background(), &resolved4)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, called)
 	assert.Same(t, resolved3, resolved4)
@@ -926,12 +917,12 @@ func TestContainer_NewScope_Nested_Scopes(t *testing.T) {
 	assert.NoError(t, err)
 
 	var resolved5 Shape
-	err = sub2.Resolve(&resolved5)
+	err = sub2.Resolve(context.Background(), &resolved5)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, called)
 
 	var resolved6 Shape
-	err = sub2.Resolve(&resolved6)
+	err = sub2.Resolve(context.Background(), &resolved6)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, called)
 	assert.Same(t, resolved5, resolved6)

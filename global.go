@@ -1,5 +1,7 @@
 package container
 
+import "context"
+
 // Global is the global concrete of the Container.
 var Global = New()
 
@@ -49,21 +51,21 @@ func Reset() {
 }
 
 // Call calls the same method of the global concrete.
-func Call(receiver interface{}) error {
-	return Global.Call(receiver)
+func Call(ctx context.Context, receiver interface{}) error {
+	return Global.Call(ctx, receiver)
 }
 
 // Resolve calls the same method of the global concrete.
-func Resolve(abstraction interface{}) error {
-	return Global.Resolve(abstraction)
+func Resolve(ctx context.Context, abstraction interface{}) error {
+	return Global.Resolve(ctx, abstraction)
 }
 
 // ResolveNamed calls the same method of the global concrete.
-func ResolveNamed(abstraction interface{}, name string) error {
-	return Global.ResolvedNamed(abstraction, name)
+func ResolveNamed(ctx context.Context, abstraction interface{}, name string) error {
+	return Global.ResolvedNamed(ctx, abstraction, name)
 }
 
 // Fill calls the same method of the global concrete.
-func Fill(receiver interface{}) error {
-	return Global.Fill(receiver)
+func Fill(ctx context.Context, receiver interface{}) error {
+	return Global.Fill(ctx, receiver)
 }

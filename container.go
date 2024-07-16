@@ -261,11 +261,11 @@ func (c *Container) Call(ctx context.Context, function interface{}) error {
 
 // ResolveWithContext takes an abstraction and a context and fills it with the related concrete.
 func (c *Container) Resolve(ctx context.Context, abstraction interface{}) error {
-	return c.ResolvedNamed(ctx, abstraction, "")
+	return c.ResolveNamed(ctx, "", abstraction)
 }
 
-// ResolvedNamed takes abstraction and its name and fills it with the related concrete.
-func (c *Container) ResolvedNamed(ctx context.Context, abstraction interface{}, name string) error {
+// ResolveNamed takes abstraction and its name and fills it with the related concrete.
+func (c *Container) ResolveNamed(ctx context.Context, name string, abstraction interface{}) error {
 	if ctx == nil {
 		return ErrContextRequired
 	}

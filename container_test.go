@@ -3,7 +3,6 @@ package container_test
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -547,7 +546,7 @@ func TestContainer_ResolveScoped_Is_Same_Instance_Within_Scope(t *testing.T) {
 	assert.Same(t, database1, database2)
 }
 
-func TestContainer_ResolveScoped_At_Root_Acts_Like_Transient(t *testing.T) {
+func TestContainer_ResolveScoped_At_Root_Acts_Like_Singleton(t *testing.T) {
 	root := container.New()
 
 	root.RegisterScoped(func() Database {
@@ -564,8 +563,8 @@ func TestContainer_ResolveScoped_At_Root_Acts_Like_Transient(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, db2)
 
-	// When scoped elements are resolved at the root container, they act like transient elements.
-	assert.NotSame(t, db1, db2)
+	// When scoped elements are resolved at the root container, they act like singleton elements.
+	assert.Same(t, db1, db2)
 }
 
 func TestContainer_ResolveScoped_With_Singleton_Dependency(t *testing.T) {
@@ -812,23 +811,6 @@ func TestContainer_Validate_With_Missing_Dependency(t *testing.T) {
 	assert.Contains(t, err.Error(), "container: no binding found for: container_test.Database")
 }
 
-func TestContainer_ResolveAll(t *testing.T) {
-	c := container.New()
-	c.RegisterNamedSingleton("circle", func() Shape {
-		return &Circle{a: 5}
-	})
-
-	c.RegisterNamedSingleton("square", func() Shape {
-		return &Square{a: 10}
-	})
-
-	results := map[string]Shape{}
-	interfaceType := reflect.TypeOf((*Shape)(nil)).Elem()
-	err := c.ResolveAll(interfaceType, results)
-	assert.NoError(t, err)
-	assert.Len(t, results, 2)
-}
-
 func TestContainer_ResolveWithContext(t *testing.T) {
 	c := container.New()
 
@@ -844,4 +826,113 @@ func TestContainer_ResolveWithContext(t *testing.T) {
 	err := c.ResolveWithContext(ctx, &s)
 	assert.NoError(t, err)
 	assert.Equal(t, refCtx, ctx)
+}
+
+func TestContainer_ResolveWithContext_Nil_Context(t *testing.T) {
+	c := container.New()
+
+	var s Shape
+	err := c.ResolveWithContext(nil, &s)
+	assert.EqualError(t, err, "container: context is required when resolving with context")
+	assert.Nil(t, s)
+}
+
+func TestContainer_CallWithContext(t *testing.T) {
+	c := container.New()
+
+	ctx := context.Background()
+
+	err := c.RegisterSingleton(func() Shape {
+		return &Circle{a: 5}
+	})
+
+	assert.NoError(t, err)
+
+	err = c.CallWithContext(ctx, func(refCtx context.Context, s Shape) {
+		assert.Equal(t, refCtx, ctx)
+		assert.NotNil(t, s)
+	})
+
+	assert.NoError(t, err)
+}
+
+func TestContainer_CallWithContext_Nil_Context(t *testing.T) {
+	c := container.New()
+
+	err := c.CallWithContext(nil, func(s Shape) {
+		assert.NotNil(t, s)
+	})
+
+	assert.EqualError(t, err, "container: context is required when calling with context")
+}
+
+func TestContainer_Call_Missing_Context(t *testing.T) {
+	c := container.New()
+
+	err := c.RegisterSingleton(func(ctx context.Context) Shape {
+		return &Circle{a: 5}
+	})
+
+	assert.NoError(t, err)
+
+	err = c.Call(func(ctx context.Context) {
+		assert.Nil(t, ctx)
+	})
+
+	assert.EqualError(t, err, "container: context is required making instance: context.Context. Ensure you are using the 'WithContext(...)' overloads.")
+}
+
+func TestContainer_NewScope_Nested_Scopes(t *testing.T) {
+	c := container.New()
+	called := 0
+
+	err := c.RegisterScoped(func() Shape {
+		called++
+		return &Circle{}
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, called)
+
+	// Resolve the same type twice, since it's scoped, the resolver should only one once, the second time we just return the cached instance.
+	var resolved1 Shape
+	err = c.Resolve(&resolved1)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, called)
+
+	var resolved2 Shape
+	err = c.Resolve(&resolved2)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, called)
+	assert.Same(t, resolved1, resolved2)
+
+	// Create a new scope, and then resolve in that scope, the resolver should be called again, since we are in a new scope.
+	sub, err := c.NewScope()
+	assert.NoError(t, err)
+
+	var resolved3 Shape
+	err = sub.Resolve(&resolved3)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, called)
+
+	var resolved4 Shape
+	err = sub.Resolve(&resolved4)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, called)
+	assert.Same(t, resolved3, resolved4)
+
+	// Now, create a scope from this container we got from NewScope on the previous container and run the resolvers again.
+	sub2, err := sub.NewScope()
+	assert.NoError(t, err)
+
+	var resolved5 Shape
+	err = sub2.Resolve(&resolved5)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, called)
+
+	var resolved6 Shape
+	err = sub2.Resolve(&resolved6)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, called)
+	assert.Same(t, resolved5, resolved6)
 }

@@ -24,6 +24,8 @@ func New() *Container {
 	}
 }
 
+// NewScope creates a new child container scope.
+// Scoped bindings are copied from the parent container to the child container and act as singletons within the new scope
 func (c *Container) NewScope() (*Container, error) {
 	childContainer := New()
 	childContainer.parent = c
@@ -31,7 +33,7 @@ func (c *Container) NewScope() (*Container, error) {
 	for _, outerBinding := range c.bindings {
 		for name, binding := range outerBinding {
 			if binding.lifetime == Scoped {
-				if err := childContainer.bind(binding.resolver, name, Singleton); err != nil {
+				if err := childContainer.bind(binding.resolver, name, binding.lifetime); err != nil {
 					return nil, err
 				}
 			}
@@ -82,8 +84,8 @@ func (c *Container) validateResolverFunction(funcType reflect.Type) error {
 
 // invoke calls a function and its returned values.
 // It only accepts one value and an optional error.
-func (c *Container) invoke(function interface{}) (interface{}, error) {
-	arguments, err := c.arguments(function)
+func (c *Container) invoke(ctx context.Context, function interface{}) (interface{}, error) {
+	arguments, err := c.arguments(ctx, function)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +101,7 @@ func (c *Container) invoke(function interface{}) (interface{}, error) {
 
 // make resolves the binding and returns the concrete.
 // Search up any parent container scopes if the binding is not found in current scope.
-func (c *Container) make(t reflect.Type, name string) (interface{}, error) {
+func (c *Container) make(ctx context.Context, t reflect.Type, name string) (interface{}, error) {
 	current := c
 	var binding *binding
 
@@ -120,22 +122,31 @@ func (c *Container) make(t reflect.Type, name string) (interface{}, error) {
 		return nil, errors.New("container: no binding found for: " + t.String())
 	}
 
-	return binding.make(current)
+	return binding.make(ctx, current)
 }
 
 // arguments returns the list of resolved arguments for a function.
-func (c *Container) arguments(function interface{}) ([]reflect.Value, error) {
+func (c *Container) arguments(ctx context.Context, function interface{}) ([]reflect.Value, error) {
 	reflectedFunction := reflect.TypeOf(function)
 	argumentsCount := reflectedFunction.NumIn()
 	arguments := make([]reflect.Value, argumentsCount)
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
 
 	for i := 0; i < argumentsCount; i++ {
 		abstraction := reflectedFunction.In(i)
 
-		if instance, err := c.make(abstraction, ""); err == nil {
-			arguments[i] = reflect.ValueOf(instance)
+		if abstraction.Implements(contextType) {
+			if ctx == noContext() {
+				return nil, fmt.Errorf("container: context is required making instance: %s. Ensure you are using the 'WithContext(...)' overloads.", abstraction.String())
+			}
+
+			arguments[i] = reflect.ValueOf(ctx)
 		} else {
-			return nil, fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", abstraction.String(), err)
+			if instance, err := c.make(ctx, abstraction, ""); err == nil {
+				arguments[i] = reflect.ValueOf(instance)
+			} else {
+				return nil, fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", abstraction.String(), err)
+			}
 		}
 	}
 
@@ -206,15 +217,27 @@ func (c *Container) RegisterNamedScoped(name string, resolver interface{}) error
 	return c.bind(resolver, name, Scoped)
 }
 
+func (c *Container) Call(function interface{}) error {
+	return c.call(noContext(), function)
+}
+
+func (c *Container) CallWithContext(ctx context.Context, function interface{}) error {
+	if ctx == nil {
+		return errors.New("container: context is required when calling with context")
+	}
+
+	return c.call(ctx, function)
+}
+
 // Call takes a receiver function with one or more arguments of the abstractions (interfaces).
 // It invokes the receiver function and passes the related concretes.
-func (c *Container) Call(function interface{}) error {
+func (c *Container) call(ctx context.Context, function interface{}) error {
 	receiverType := reflect.TypeOf(function)
 	if receiverType == nil || receiverType.Kind() != reflect.Func {
 		return errors.New("container: invalid function")
 	}
 
-	arguments, err := c.arguments(function)
+	arguments, err := c.arguments(ctx, function)
 	if err != nil {
 		return err
 	}
@@ -237,52 +260,23 @@ func (c *Container) Call(function interface{}) error {
 
 // Resolve takes an abstraction (reference of an interface type) and fills it with the related concrete.
 func (c *Container) Resolve(abstraction interface{}) error {
-	return c.ResolvedNamed(abstraction, "")
+	return c.resolve(noContext(), abstraction, "")
 }
 
 // ResolveWithContext takes an abstraction and a context and fills it with the related concrete.
 func (c *Container) ResolveWithContext(ctx context.Context, abstraction interface{}) error {
-	err := c.RegisterSingleton(func() context.Context {
-		return ctx
-	})
-	if err != nil {
-		return err
+	if ctx == nil {
+		return errors.New("container: context is required when resolving with context")
 	}
-
-	if err := c.Resolve(abstraction); err != nil {
-		return err
-	}
-
-	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
-	delete(c.bindings, contextType)
-
-	return nil
-}
-
-// ResolveAll takes an abstraction and returns all the related concretes with their names.
-func (c *Container) ResolveAll(interfaceType reflect.Type, abstraction interface{}) error {
-	if interfaceType.Kind() != reflect.Interface {
-		return errors.New("container: invalid abstraction")
-	}
-
-	typeBindings, has := c.bindings[interfaceType]
-	if !has {
-		return errors.New("container: no bindings found for: " + interfaceType.String())
-	}
-
-	for name := range typeBindings {
-		if instance, err := c.make(interfaceType, name); err == nil {
-			reflect.ValueOf(abstraction).SetMapIndex(reflect.ValueOf(name), reflect.ValueOf(instance))
-		} else {
-			return fmt.Errorf("container: encountered error while making instance for: %s. Error encountered: %w", interfaceType.String(), err)
-		}
-	}
-
-	return nil
+	return c.resolve(ctx, abstraction, "")
 }
 
 // ResolvedNamed takes abstraction and its name and fills it with the related concrete.
 func (c *Container) ResolvedNamed(abstraction interface{}, name string) error {
+	return c.resolve(noContext(), abstraction, name)
+}
+
+func (c *Container) resolve(ctx context.Context, abstraction interface{}, name string) error {
 	receiverType := reflect.TypeOf(abstraction)
 	if receiverType == nil {
 		return errors.New("container: invalid abstraction")
@@ -295,7 +289,7 @@ func (c *Container) ResolvedNamed(abstraction interface{}, name string) error {
 
 	elem := receiverType.Elem()
 
-	if instance, err := c.make(elem, name); err == nil {
+	if instance, err := c.make(ctx, elem, name); err == nil {
 		reflect.ValueOf(abstraction).Elem().Set(reflect.ValueOf(instance))
 		return nil
 	} else {
@@ -335,7 +329,7 @@ func (c *Container) Fill(structure interface{}) error {
 				return fmt.Errorf("container: %v has an invalid struct tag", s.Type().Field(i).Name)
 			}
 
-			if instance, err := c.make(f.Type(), name); err == nil {
+			if instance, err := c.make(noContext(), f.Type(), name); err == nil {
 				ptr := reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem()
 				ptr.Set(reflect.ValueOf(instance))
 
@@ -353,7 +347,7 @@ func (c *Container) Fill(structure interface{}) error {
 func (c *Container) Validate() error {
 	for t, binding := range c.bindings {
 		for name := range binding {
-			if _, err := c.make(t, name); err != nil {
+			if _, err := c.make(noContext(), t, name); err != nil {
 				return err
 			}
 		}

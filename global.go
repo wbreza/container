@@ -13,30 +13,32 @@ func RegisterNamedInstance(name string, instance interface{}) error {
 	return Global.RegisterNamedInstance(name, instance)
 }
 
-// Singleton calls the same method of the global concrete.
+// RegisterSingleton calls the same method of the global concrete.
 func RegisterSingleton(resolver interface{}) error {
 	return Global.RegisterSingleton(resolver)
 }
 
-// NamedSingleton calls the same method of the global concrete.
+// RegisterNamedSingleton calls the same method of the global concrete.
 func RegisterNamedSingleton(name string, resolver interface{}) error {
 	return Global.RegisterNamedSingleton(name, resolver)
 }
 
-// Transient calls the same method of the global concrete.
+// RegisterTransient calls the same method of the global concrete.
 func RegisterTransient(resolver interface{}) error {
 	return Global.RegisterTransient(resolver)
 }
 
-// NamedTransient calls the same method of the global concrete.
+// RegisterNamedTransient calls the same method of the global concrete.
 func RegisterNamedTransient(name string, resolver interface{}) error {
 	return Global.RegisterNamedTransient(name, resolver)
 }
 
+// RegisterScoped calls the same method of the global concrete.
 func RegisterScoped(resolver interface{}) error {
 	return Global.RegisterScoped(resolver)
 }
 
+// RegisterNamedScoped calls the same method of the global concrete.
 func RegisterNamedScoped(name string, resolver interface{}) error {
 	return Global.RegisterNamedScoped(name, resolver)
 }
@@ -56,7 +58,7 @@ func Resolve(abstraction interface{}) error {
 	return Global.Resolve(abstraction)
 }
 
-// NamedResolve calls the same method of the global concrete.
+// ResolveNamed calls the same method of the global concrete.
 func ResolveNamed(abstraction interface{}, name string) error {
 	return Global.ResolvedNamed(abstraction, name)
 }

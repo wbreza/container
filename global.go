@@ -62,7 +62,7 @@ func Resolve(ctx context.Context, abstraction interface{}) error {
 
 // ResolveNamed calls the same method of the global concrete.
 func ResolveNamed(ctx context.Context, abstraction interface{}, name string) error {
-	return Global.ResolvedNamed(ctx, abstraction, name)
+	return Global.ResolveNamed(ctx, name, abstraction)
 }
 
 // Fill calls the same method of the global concrete.

@@ -73,8 +73,8 @@ func MustResolve(ctx context.Context, c *Container, abstraction interface{}) {
 }
 
 // MustNamedResolve wraps the `NamedResolve` method and panics on errors instead of returning the errors.
-func MustNamedResolve(ctx context.Context, c *Container, abstraction interface{}, name string) {
-	if err := c.ResolvedNamed(ctx, abstraction, name); err != nil {
+func MustResolveNamed(ctx context.Context, c *Container, abstraction interface{}, name string) {
+	if err := c.ResolveNamed(ctx, name, abstraction); err != nil {
 		panic(err)
 	}
 }

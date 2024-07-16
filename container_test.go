@@ -150,7 +150,7 @@ func TestContainer_RegisterNamedSingleton(t *testing.T) {
 	assert.NoError(t, err)
 
 	var sh Shape
-	err = instance.ResolvedNamed(context.Background(), &sh, "theCircle")
+	err = instance.ResolveNamed(context.Background(), "theCircle", &sh)
 	assert.NoError(t, err)
 	assert.Equal(t, sh.GetArea(), 13)
 }
@@ -209,7 +209,7 @@ func TestContainer_RegisterNamedTransient(t *testing.T) {
 	assert.NoError(t, err)
 
 	var sh Shape
-	err = instance.ResolvedNamed(context.Background(), &sh, "theCircle")
+	err = instance.ResolveNamed(context.Background(), "theCircle", &sh)
 	assert.NoError(t, err)
 	assert.Equal(t, sh.GetArea(), 13)
 }
@@ -506,7 +506,7 @@ func TestContainer_Fill_With_Dependency_Missing_In_Chain(t *testing.T) {
 
 	err = instance.RegisterNamedSingleton("C", func() (Shape, error) {
 		var s Shape
-		if err := instance.ResolvedNamed(context.Background(), &s, "foo"); err != nil {
+		if err := instance.ResolveNamed(context.Background(), "foo", &s); err != nil {
 			return nil, err
 		}
 		return &Circle{a: 5}, nil
@@ -755,7 +755,7 @@ func TestContainer_ResolveNamedInstance(t *testing.T) {
 	assert.NoError(t, err)
 
 	var resolvedCircle *Circle
-	err = c.ResolvedNamed(context.Background(), &resolvedCircle, "circle")
+	err = c.ResolveNamed(context.Background(), "circle", &resolvedCircle)
 	assert.NoError(t, err)
 	assert.Same(t, circle, resolvedCircle)
 }

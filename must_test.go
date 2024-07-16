@@ -51,7 +51,7 @@ func TestMustRegisterNamedTransient_It_Should_Panic_On_Error(t *testing.T) {
 
 	assert.PanicsWithError(t, expectedErr, func() {
 		var resVal Shape
-		container.MustNamedResolve(context.Background(), c, &resVal, "name")
+		container.MustResolveNamed(context.Background(), c, &resVal, "name")
 	})
 }
 
@@ -84,7 +84,7 @@ func TestMustRegisterNamedScoped_It_Should_Panic_On_Error(t *testing.T) {
 		assert.NoError(t, err)
 
 		var resVal Shape
-		container.MustNamedResolve(context.Background(), scope, &resVal, "name")
+		container.MustResolveNamed(context.Background(), scope, &resVal, "name")
 	})
 }
 
@@ -133,7 +133,7 @@ func TestMustNamedResolve_It_Should_Panic_On_Error(t *testing.T) {
 
 	assert.PanicsWithError(t, expectedErr, func() {
 		var s Shape
-		container.MustNamedResolve(context.Background(), c, &s, "name")
+		container.MustResolveNamed(context.Background(), c, &s, "name")
 	})
 }
 

@@ -1,46 +1,48 @@
 package container
 
+import "context"
+
 // Global is the global concrete of the Container.
 var Global = New()
 
-// Singleton calls the same method of the global concrete.
-func Singleton(resolver interface{}) error {
-	return Global.Singleton(resolver)
+// RegisterInstance calls the same method of the global concrete.
+func RegisterInstance(instance interface{}) error {
+	return Global.RegisterInstance(instance)
 }
 
-// SingletonLazy calls the same method of the global concrete.
-func SingletonLazy(resolver interface{}) error {
-	return Global.SingletonLazy(resolver)
+// RegisterNamedInstance calls the same method of the global concrete.
+func RegisterNamedInstance(name string, instance interface{}) error {
+	return Global.RegisterNamedInstance(name, instance)
 }
 
-// NamedSingleton calls the same method of the global concrete.
-func NamedSingleton(name string, resolver interface{}) error {
-	return Global.NamedSingleton(name, resolver)
+// RegisterSingleton calls the same method of the global concrete.
+func RegisterSingleton(resolver interface{}) error {
+	return Global.RegisterSingleton(resolver)
 }
 
-// NamedSingletonLazy calls the same method of the global concrete.
-func NamedSingletonLazy(name string, resolver interface{}) error {
-	return Global.NamedSingletonLazy(name, resolver)
+// RegisterNamedSingleton calls the same method of the global concrete.
+func RegisterNamedSingleton(name string, resolver interface{}) error {
+	return Global.RegisterNamedSingleton(name, resolver)
 }
 
-// Transient calls the same method of the global concrete.
-func Transient(resolver interface{}) error {
-	return Global.Transient(resolver)
+// RegisterTransient calls the same method of the global concrete.
+func RegisterTransient(resolver interface{}) error {
+	return Global.RegisterTransient(resolver)
 }
 
-// TransientLazy calls the same method of the global concrete.
-func TransientLazy(resolver interface{}) error {
-	return Global.TransientLazy(resolver)
+// RegisterNamedTransient calls the same method of the global concrete.
+func RegisterNamedTransient(name string, resolver interface{}) error {
+	return Global.RegisterNamedTransient(name, resolver)
 }
 
-// NamedTransient calls the same method of the global concrete.
-func NamedTransient(name string, resolver interface{}) error {
-	return Global.NamedTransient(name, resolver)
+// RegisterScoped calls the same method of the global concrete.
+func RegisterScoped(resolver interface{}) error {
+	return Global.RegisterScoped(resolver)
 }
 
-// NamedTransientLazy calls the same method of the global concrete.
-func NamedTransientLazy(name string, resolver interface{}) error {
-	return Global.NamedTransientLazy(name, resolver)
+// RegisterNamedScoped calls the same method of the global concrete.
+func RegisterNamedScoped(name string, resolver interface{}) error {
+	return Global.RegisterNamedScoped(name, resolver)
 }
 
 // Reset calls the same method of the global concrete.
@@ -49,21 +51,21 @@ func Reset() {
 }
 
 // Call calls the same method of the global concrete.
-func Call(receiver interface{}) error {
-	return Global.Call(receiver)
+func Call(ctx context.Context, receiver interface{}) error {
+	return Global.Call(ctx, receiver)
 }
 
 // Resolve calls the same method of the global concrete.
-func Resolve(abstraction interface{}) error {
-	return Global.Resolve(abstraction)
+func Resolve(ctx context.Context, abstraction interface{}) error {
+	return Global.Resolve(ctx, abstraction)
 }
 
-// NamedResolve calls the same method of the global concrete.
-func NamedResolve(abstraction interface{}, name string) error {
-	return Global.NamedResolve(abstraction, name)
+// ResolveNamed calls the same method of the global concrete.
+func ResolveNamed(ctx context.Context, abstraction interface{}, name string) error {
+	return Global.ResolvedNamed(ctx, abstraction, name)
 }
 
 // Fill calls the same method of the global concrete.
-func Fill(receiver interface{}) error {
-	return Global.Fill(receiver)
+func Fill(ctx context.Context, receiver interface{}) error {
+	return Global.Fill(ctx, receiver)
 }

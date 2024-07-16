@@ -1,140 +1,151 @@
 package container_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"testing"
 
-	"github.com/golobby/container/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/wbreza/container/v4"
 )
 
-func TestMustSingleton_It_Should_Panic_On_Error(t *testing.T) {
-	c := container.New()
+func TestMustRegisterSingleton_It_Should_Panic_On_Error(t *testing.T) {
+	expectedErr := fmt.Sprintf("%s, the resolver must be a function", container.ErrInvalidResolver)
 
-	defer func() { recover() }()
-	container.MustSingleton(c, func() (Shape, error) {
-		return nil, errors.New("error")
+	assert.PanicsWithError(t, expectedErr, func() {
+		c := container.New()
+		container.MustRegisterSingleton(c, "not a resolver function")
 	})
-	t.Errorf("panic expcted.")
-}
-
-func TestMustSingletonLazy_It_Should_Panic_On_Error(t *testing.T) {
-	c := container.New()
-
-	defer func() { recover() }()
-	container.MustSingletonLazy(c, func() {})
-	t.Errorf("panic expcted.")
 }
 
 func TestMustNamedSingleton_It_Should_Panic_On_Error(t *testing.T) {
-	c := container.New()
+	expectedErr := fmt.Sprintf("%s, the resolver must be a function", container.ErrInvalidResolver)
 
-	defer func() { recover() }()
-	container.MustNamedSingleton(c, "name", func() (Shape, error) {
-		return nil, errors.New("error")
+	assert.PanicsWithError(t, expectedErr, func() {
+		c := container.New()
+		container.MustRegisterNamedSingleton(c, "name", "not a resolver function")
 	})
-	t.Errorf("panic expcted.")
 }
 
-func TestMustNamedSingletonLazy_It_Should_Panic_On_Error(t *testing.T) {
+func TestMustRegisterTransient_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
 
-	defer func() { recover() }()
-	container.MustNamedSingletonLazy(c, "name", func() {})
-	t.Errorf("panic expcted.")
-}
-
-func TestMustTransient_It_Should_Panic_On_Error(t *testing.T) {
-	c := container.New()
-
-	defer func() { recover() }()
-	container.MustTransient(c, func() (Shape, error) {
-		return nil, errors.New("error")
+	container.MustRegisterTransient(c, func() (Shape, error) {
+		return nil, errors.New("custom error")
 	})
 
-	var resVal Shape
-	container.MustResolve(c, &resVal)
-
-	t.Errorf("panic expcted.")
+	assert.PanicsWithError(t, "failed making instance for type 'container_test.Shape'. Error: custom error", func() {
+		var resVal Shape
+		container.MustResolve(context.Background(), c, &resVal)
+	})
 }
 
-func TestMustTransientLazy_It_Should_Panic_On_Error(t *testing.T) {
+func TestMustRegisterNamedTransient_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
+	expectedErr := "failed making instance for type 'container_test.Shape' with name 'name'. Error: no binding found for abstraction 'container_test.Shape'"
 
-	defer func() { recover() }()
-	container.MustTransientLazy(c, func() {
+	container.MustRegisterNamedTransient(c, "custom-name", func() (Shape, error) {
+		return nil, errors.New("custom error")
 	})
 
-	var resVal Shape
-	container.MustResolve(c, &resVal)
-
-	t.Errorf("panic expcted.")
+	assert.PanicsWithError(t, expectedErr, func() {
+		var resVal Shape
+		container.MustNamedResolve(context.Background(), c, &resVal, "name")
+	})
 }
 
-func TestMustNamedTransient_It_Should_Panic_On_Error(t *testing.T) {
+func TestMustRegisterScoped_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
 
-	defer func() { recover() }()
-	container.MustNamedTransient(c, "name", func() (Shape, error) {
-		return nil, errors.New("error")
+	container.MustRegisterScoped(c, func() (Shape, error) {
+		return nil, errors.New("custom error")
 	})
 
-	var resVal Shape
-	container.MustNamedResolve(c, &resVal, "name")
+	assert.PanicsWithError(t, "failed making instance for type 'container_test.Shape'. Error: custom error", func() {
+		scope, err := c.NewScope()
+		assert.NoError(t, err)
 
-	t.Errorf("panic expcted.")
+		var resVal Shape
+		container.MustResolve(context.Background(), scope, &resVal)
+	})
 }
 
-func TestMustNamedTransientLazy_It_Should_Panic_On_Error(t *testing.T) {
+func TestMustRegisterNamedScoped_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
+	expectedErr := "failed making instance for type 'container_test.Shape' with name 'name'. Error: no binding found for abstraction 'container_test.Shape'"
 
-	defer func() { recover() }()
-	container.MustNamedTransientLazy(c, "name", func() {
+	container.MustRegisterNamedScoped(c, "custom-name", func() (Shape, error) {
+		return nil, errors.New("custom error")
 	})
 
-	var resVal Shape
-	container.MustNamedResolve(c, &resVal, "name")
+	assert.PanicsWithError(t, expectedErr, func() {
+		scope, err := c.NewScope()
+		assert.NoError(t, err)
 
-	t.Errorf("panic expcted.")
+		var resVal Shape
+		container.MustNamedResolve(context.Background(), scope, &resVal, "name")
+	})
+}
+
+func TestMustRegisterInstance_It_Should_Panic_On_Error(t *testing.T) {
+	expectedErr := "invalid resolver, cannot register a function as an instance"
+
+	assert.PanicsWithError(t, expectedErr, func() {
+		c := container.New()
+		container.MustRegisterInstance(c, func() {})
+	})
+}
+
+func TestMustRegisterNamedInstance_It_Should_Panic_On_Error(t *testing.T) {
+	expectedErr := "invalid resolver, cannot register a function as an instance"
+
+	assert.PanicsWithError(t, expectedErr, func() {
+		c := container.New()
+		container.MustRegisterNamedInstance(c, "name", func() {})
+	})
 }
 
 func TestMustCall_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
+	expectedErr := "failed making instance for type 'container_test.Shape', Error: no binding found for abstraction 'container_test.Shape'"
 
-	defer func() { recover() }()
-	container.MustCall(c, func(s Shape) {
-		s.GetArea()
+	assert.PanicsWithError(t, expectedErr, func() {
+		container.MustCall(context.Background(), c, func(s Shape) {
+			s.GetArea()
+		})
 	})
-	t.Errorf("panic expcted.")
 }
 
 func TestMustResolve_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
+	expectedErr := "failed making instance for type 'container_test.Shape'. Error: no binding found for abstraction 'container_test.Shape'"
 
-	var s Shape
-
-	defer func() { recover() }()
-	container.MustResolve(c, &s)
-	t.Errorf("panic expcted.")
+	assert.PanicsWithError(t, expectedErr, func() {
+		var s Shape
+		container.MustResolve(context.Background(), c, &s)
+	})
 }
 
 func TestMustNamedResolve_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
+	expectedErr := "failed making instance for type 'container_test.Shape' with name 'name'. Error: no binding found for abstraction 'container_test.Shape'"
 
-	var s Shape
-
-	defer func() { recover() }()
-	container.MustNamedResolve(c, &s, "name")
-	t.Errorf("panic expcted.")
+	assert.PanicsWithError(t, expectedErr, func() {
+		var s Shape
+		container.MustNamedResolve(context.Background(), c, &s, "name")
+	})
 }
 
 func TestMustFill_It_Should_Panic_On_Error(t *testing.T) {
 	c := container.New()
+	expectedErr := "failed making instance for field 'S', Error: no binding found for abstraction 'container_test.Shape'"
 
 	myApp := struct {
 		S Shape `container:"type"`
 	}{}
 
-	defer func() { recover() }()
-	container.MustFill(c, &myApp)
-	t.Errorf("panic expcted.")
+	assert.PanicsWithError(t, expectedErr, func() {
+		container.MustFill(context.Background(), c, &myApp)
+	})
 }

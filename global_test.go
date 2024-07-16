@@ -1,79 +1,76 @@
 package container_test
 
 import (
+	"context"
 	"testing"
 
-	"github.com/golobby/container/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/wbreza/container/v4"
 )
 
-func TestSingleton(t *testing.T) {
+func TestRegisterInstance(t *testing.T) {
 	container.Reset()
 
-	err := container.Singleton(func() Shape {
+	err := container.RegisterInstance(&Circle{a: 13})
+	assert.NoError(t, err)
+}
+
+func TestRegisterNamedInstance(t *testing.T) {
+	container.Reset()
+
+	err := container.RegisterNamedInstance("rounded", &Circle{a: 13})
+	assert.NoError(t, err)
+}
+
+func TestRegisterSingleton(t *testing.T) {
+	container.Reset()
+
+	err := container.RegisterSingleton(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestSingletonLazy(t *testing.T) {
+func TestRegisterNamedSingleton(t *testing.T) {
 	container.Reset()
 
-	err := container.SingletonLazy(func() Shape {
+	err := container.RegisterNamedSingleton("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestNamedSingleton(t *testing.T) {
+func TestRegisterTransient(t *testing.T) {
 	container.Reset()
 
-	err := container.NamedSingleton("rounded", func() Shape {
+	err := container.RegisterTransient(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestNamedSingletonLazy(t *testing.T) {
+func TestRegisterNamedTransient(t *testing.T) {
 	container.Reset()
 
-	err := container.NamedSingletonLazy("rounded", func() Shape {
+	err := container.RegisterNamedTransient("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestTransient(t *testing.T) {
+func TestRegisterScoped(t *testing.T) {
 	container.Reset()
 
-	err := container.Transient(func() Shape {
+	err := container.RegisterScoped(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 }
 
-func TestTransientLazy(t *testing.T) {
+func TestRegisterNamedScoped(t *testing.T) {
 	container.Reset()
 
-	err := container.TransientLazy(func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-}
-
-func TestNamedTransient(t *testing.T) {
-	container.Reset()
-
-	err := container.NamedTransient("rounded", func() Shape {
-		return &Circle{a: 13}
-	})
-	assert.NoError(t, err)
-}
-
-func TestNamedTransientLazy(t *testing.T) {
-	container.Reset()
-
-	err := container.NamedTransientLazy("rounded", func() Shape {
+	err := container.RegisterNamedScoped("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -82,7 +79,7 @@ func TestNamedTransientLazy(t *testing.T) {
 func TestCall(t *testing.T) {
 	container.Reset()
 
-	err := container.Call(func() {})
+	err := container.Call(context.Background(), func() {})
 	assert.NoError(t, err)
 }
 
@@ -91,33 +88,33 @@ func TestResolve(t *testing.T) {
 
 	var s Shape
 
-	err := container.Singleton(func() Shape {
+	err := container.RegisterSingleton(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 
-	err = container.Resolve(&s)
+	err = container.Resolve(context.Background(), &s)
 	assert.NoError(t, err)
 }
 
-func TestNamedResolve(t *testing.T) {
+func TestResolveNamed(t *testing.T) {
 	container.Reset()
 
 	var s Shape
 
-	err := container.NamedSingleton("rounded", func() Shape {
+	err := container.RegisterNamedSingleton("rounded", func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
 
-	err = container.NamedResolve(&s, "rounded")
+	err = container.ResolveNamed(context.Background(), &s, "rounded")
 	assert.NoError(t, err)
 }
 
 func TestFill(t *testing.T) {
 	container.Reset()
 
-	err := container.Singleton(func() Shape {
+	err := container.RegisterSingleton(func() Shape {
 		return &Circle{a: 13}
 	})
 	assert.NoError(t, err)
@@ -126,6 +123,6 @@ func TestFill(t *testing.T) {
 		s Shape `Global:"type"`
 	}{}
 
-	err = container.Fill(&myApp)
+	err = container.Fill(context.Background(), &myApp)
 	assert.NoError(t, err)
 }

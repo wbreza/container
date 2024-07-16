@@ -1,6 +1,6 @@
-module github.com/golobby/container/v3
+module github.com/wbreza/container/v4
 
-go 1.17
+go 1.20
 
 require github.com/stretchr/testify v1.7.0
 

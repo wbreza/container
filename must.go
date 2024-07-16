@@ -1,85 +1,87 @@
 package container
 
-// MustSingleton wraps the `Singleton` method and panics on errors instead of returning the errors.
-func MustSingleton(c Container, resolver interface{}) {
-	if err := c.Singleton(resolver); err != nil {
+import "context"
+
+// MustRegisterInstance wraps the `RegisterInstance` method and panics on errors instead of returning the errors.
+func MustRegisterInstance(c *Container, instance interface{}) {
+	if err := c.RegisterInstance(instance); err != nil {
 		panic(err)
 	}
 }
 
-// MustSingleton wraps the `SingletonLazy` method and panics on errors instead of returning the errors.
-func MustSingletonLazy(c Container, resolver interface{}) {
-	if err := c.SingletonLazy(resolver); err != nil {
+// MustRegisterNamedInstance wraps the `RegisterNamedInstance` method and panics on errors instead of returning the errors.
+func MustRegisterNamedInstance(c *Container, name string, instance interface{}) {
+	if err := c.RegisterNamedInstance(name, instance); err != nil {
 		panic(err)
 	}
 }
 
-// MustNamedSingleton wraps the `NamedSingleton` method and panics on errors instead of returning the errors.
-func MustNamedSingleton(c Container, name string, resolver interface{}) {
-	if err := c.NamedSingleton(name, resolver); err != nil {
+// MustRegisterSingleton wraps the `RegisterSingleton` method and panics on errors instead of returning the errors.
+func MustRegisterSingleton(c *Container, resolver interface{}) {
+	if err := c.RegisterSingleton(resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustNamedSingleton wraps the `NamedSingletonLazy` method and panics on errors instead of returning the errors.
-func MustNamedSingletonLazy(c Container, name string, resolver interface{}) {
-	if err := c.NamedSingletonLazy(name, resolver); err != nil {
+// MustRegisterNamedSingleton wraps the `RegisterNamedSingleton` method and panics on errors instead of returning the errors.
+func MustRegisterNamedSingleton(c *Container, name string, resolver interface{}) {
+	if err := c.RegisterNamedSingleton(name, resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustTransient wraps the `Transient` method and panics on errors instead of returning the errors.
-func MustTransient(c Container, resolver interface{}) {
-	if err := c.Transient(resolver); err != nil {
+// MustRegisterTransient wraps the `RegisterTransient` method and panics on errors instead of returning the errors.
+func MustRegisterTransient(c *Container, resolver interface{}) {
+	if err := c.RegisterTransient(resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustTransientLazy wraps the `TransientLazy` method and panics on errors instead of returning the errors.
-func MustTransientLazy(c Container, resolver interface{}) {
-	if err := c.TransientLazy(resolver); err != nil {
+// MustRegisterNamedTransient wraps the `RegisterNamedTransient` method and panics on errors instead of returning the errors.
+func MustRegisterNamedTransient(c *Container, name string, resolver interface{}) {
+	if err := c.RegisterNamedTransient(name, resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustNamedTransient wraps the `NamedTransient` method and panics on errors instead of returning the errors.
-func MustNamedTransient(c Container, name string, resolver interface{}) {
-	if err := c.NamedTransient(name, resolver); err != nil {
+// MustRegisterScoped wraps the `RegisterScoped` method and panics on errors instead of returning the errors.
+func MustRegisterScoped(c *Container, resolver interface{}) {
+	if err := c.RegisterScoped(resolver); err != nil {
 		panic(err)
 	}
 }
 
-// MustNamedTransient wraps the `NamedTransientLazy` method and panics on errors instead of returning the errors.
-func MustNamedTransientLazy(c Container, name string, resolver interface{}) {
-	if err := c.NamedTransientLazy(name, resolver); err != nil {
+// MustRegisterNamedScoped wraps the `RegisterNamedScoped` method and panics on errors instead of returning the errors.
+func MustRegisterNamedScoped(c *Container, name string, resolver interface{}) {
+	if err := c.RegisterNamedScoped(name, resolver); err != nil {
 		panic(err)
 	}
 }
 
 // MustCall wraps the `Call` method and panics on errors instead of returning the errors.
-func MustCall(c Container, receiver interface{}) {
-	if err := c.Call(receiver); err != nil {
+func MustCall(ctx context.Context, c *Container, receiver interface{}) {
+	if err := c.Call(ctx, receiver); err != nil {
 		panic(err)
 	}
 }
 
 // MustResolve wraps the `Resolve` method and panics on errors instead of returning the errors.
-func MustResolve(c Container, abstraction interface{}) {
-	if err := c.Resolve(abstraction); err != nil {
+func MustResolve(ctx context.Context, c *Container, abstraction interface{}) {
+	if err := c.Resolve(ctx, abstraction); err != nil {
 		panic(err)
 	}
 }
 
 // MustNamedResolve wraps the `NamedResolve` method and panics on errors instead of returning the errors.
-func MustNamedResolve(c Container, abstraction interface{}, name string) {
-	if err := c.NamedResolve(abstraction, name); err != nil {
+func MustNamedResolve(ctx context.Context, c *Container, abstraction interface{}, name string) {
+	if err := c.ResolvedNamed(ctx, abstraction, name); err != nil {
 		panic(err)
 	}
 }
 
 // MustFill wraps the `Fill` method and panics on errors instead of returning the errors.
-func MustFill(c Container, receiver interface{}) {
-	if err := c.Fill(receiver); err != nil {
+func MustFill(ctx context.Context, c *Container, receiver interface{}) {
+	if err := c.Fill(ctx, receiver); err != nil {
 		panic(err)
 	}
 }

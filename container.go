@@ -56,117 +56,44 @@ func (c *Container) NewScope() (*Container, error) {
 	return childContainer, nil
 }
 
-// bind maps an abstraction to concrete and instantiates if it is a singleton binding.
-func (c *Container) bind(resolver interface{}, name string, lifetime Lifetime) error {
-	reflectedResolver := reflect.TypeOf(resolver)
-	if reflectedResolver.Kind() != reflect.Func {
-		return fmt.Errorf("%w, the resolver must be a function", ErrInvalidResolver)
-	}
-
-	if reflectedResolver.NumOut() > 0 {
-		if _, exist := c.bindings[reflectedResolver.Out(0)]; !exist {
-			c.bindings[reflectedResolver.Out(0)] = make(map[string]*binding)
-		}
-	}
-
-	if err := c.validateResolverFunction(reflectedResolver); err != nil {
-		return err
-	}
-
-	c.bindings[reflectedResolver.Out(0)][name] = &binding{resolver: resolver, lifetime: lifetime}
-
-	return nil
-}
-
-func (c *Container) validateResolverFunction(funcType reflect.Type) error {
-	retCount := funcType.NumOut()
-
-	if retCount == 0 || retCount > 2 {
-		return fmt.Errorf("%w, signature is invalid - it must return abstract, or abstract and error", ErrInvalidResolver)
-	}
-
-	resolveType := funcType.Out(0)
-	for i := 0; i < funcType.NumIn(); i++ {
-		if funcType.In(i) == resolveType {
-			return fmt.Errorf("%w, signature is invalid - depends on abstract it returns", ErrInvalidResolver)
-		}
-	}
-
-	return nil
-}
-
-// invoke calls a function and its returned values.
-// It only accepts one value and an optional error.
-func (c *Container) invoke(ctx context.Context, function interface{}) (interface{}, error) {
-	arguments, err := c.arguments(ctx, function)
-	if err != nil {
-		return nil, err
-	}
-
-	values := reflect.ValueOf(function).Call(arguments)
-	if len(values) == 2 && values[1].CanInterface() {
-		if err, ok := values[1].Interface().(error); ok {
-			return values[0].Interface(), err
-		}
-	}
-	return values[0].Interface(), nil
-}
-
-// make resolves the binding and returns the concrete.
-// Search up any parent container scopes if the binding is not found in current scope.
-func (c *Container) make(ctx context.Context, t reflect.Type, name string) (interface{}, error) {
-	current := c
-	var binding *binding
-
-	for {
-		if found, exist := current.bindings[t][name]; exist {
-			binding = found
-			break
-		}
-
-		if current.parent == nil {
-			break
-		} else {
-			current = current.parent
-		}
-	}
-
-	if binding == nil {
-		return nil, fmt.Errorf("%w for abstraction '%s'", ErrBindingNotFound, t.String())
-	}
-
-	return binding.make(ctx, current)
-}
-
-// arguments returns the list of resolved arguments for a function.
-func (c *Container) arguments(ctx context.Context, function interface{}) ([]reflect.Value, error) {
-	reflectedFunction := reflect.TypeOf(function)
-	argumentsCount := reflectedFunction.NumIn()
-	arguments := make([]reflect.Value, argumentsCount)
-	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
-
-	for i := 0; i < argumentsCount; i++ {
-		abstraction := reflectedFunction.In(i)
-
-		if abstraction.Implements(contextType) {
-			arguments[i] = reflect.ValueOf(ctx)
-		} else {
-			if instance, err := c.make(ctx, abstraction, ""); err == nil {
-				arguments[i] = reflect.ValueOf(instance)
-			} else {
-				return nil, fmt.Errorf("%w for type '%s', Error: %w", ErrResolutionFailed, abstraction.String(), err)
-			}
-		}
-	}
-
-	return arguments, nil
-}
-
 // Reset deletes all the existing bindings and empties the container.
 func (c *Container) Reset() {
 	for k := range c.bindings {
 		delete(c.bindings, k)
 	}
+}
+
+type RegisterOptions struct {
+	Resolver interface{}
+	Name     string
+	Lifetime Lifetime
+}
+
+// Registers the resolver with the specified options.
+func (c *Container) Register(options RegisterOptions) error {
+	if options.Lifetime == "" {
+		options.Lifetime = Singleton
+	}
+
+	return c.bind(options.Resolver, options.Name, options.Lifetime)
+}
+
+// Invokes the resolver and registers the instance with the specified options.
+func (c *Container) InvokeAndRegister(ctx context.Context, options RegisterOptions) error {
+	if ctx == nil {
+		return ErrContextRequired
+	}
+
+	if options.Lifetime == "" {
+		options.Lifetime = Singleton
+	}
+
+	instance, err := c.invoke(ctx, options.Resolver)
+	if err != nil {
+		return err
+	}
+
+	return c.bind(instance, options.Name, options.Lifetime)
 }
 
 // RegisterInstance binds an instance to the container in singleton mode.
@@ -177,30 +104,27 @@ func (c *Container) RegisterInstance(instance interface{}) error {
 // RegisterNamedInstance binds an instance to the container in singleton mode with a name.
 func (c *Container) RegisterNamedInstance(name string, instance interface{}) error {
 	t := reflect.TypeOf(instance)
-
 	if t.Kind() == reflect.Func {
 		return fmt.Errorf("%w, cannot register a function as an instance", ErrInvalidResolver)
 	}
 
-	c.bindings[t] = map[string]*binding{
-		name: {
-			concrete: instance,
-			lifetime: Singleton,
-		},
-	}
-
-	return nil
+	return c.bind(instance, name, Singleton)
 }
 
 // Singleton binds an abstraction to concrete in singleton mode.
 // It takes a resolver function that returns the concrete, and its return type matches the abstraction (interface).
 // The resolver function can have arguments of abstraction that have been declared in the Container already.
 func (c *Container) RegisterSingleton(resolver interface{}) error {
-	return c.bind(resolver, "", Singleton)
+	return c.RegisterNamedSingleton("", resolver)
 }
 
 // NamedSingleton binds a named abstraction to concrete in singleton mode.
 func (c *Container) RegisterNamedSingleton(name string, resolver interface{}) error {
+	t := reflect.TypeOf(resolver)
+	if t.Kind() != reflect.Func {
+		return fmt.Errorf("%w, the resolver must be a function", ErrInvalidResolver)
+	}
+
 	return c.bind(resolver, name, Singleton)
 }
 
@@ -208,21 +132,31 @@ func (c *Container) RegisterNamedSingleton(name string, resolver interface{}) er
 // It takes a resolver function that returns the concrete, and its return type matches the abstraction (interface).
 // The resolver function can have arguments of abstraction that have been declared in the Container already.
 func (c *Container) RegisterTransient(resolver interface{}) error {
-	return c.bind(resolver, "", Transient)
+	return c.RegisterNamedTransient("", resolver)
 }
 
 // NamedTransient binds a named abstraction to concrete lazily in transient mode.
 func (c *Container) RegisterNamedTransient(name string, resolver interface{}) error {
+	t := reflect.TypeOf(resolver)
+	if t.Kind() != reflect.Func {
+		return fmt.Errorf("%w, the resolver must be a function", ErrInvalidResolver)
+	}
+
 	return c.bind(resolver, name, Transient)
 }
 
 // Scoped binds an abstraction to concrete in scoped mode.
 func (c *Container) RegisterScoped(resolver interface{}) error {
-	return c.bind(resolver, "", Scoped)
+	return c.RegisterNamedScoped("", resolver)
 }
 
 // NamedScoped binds a named abstraction to concrete in scoped mode.
 func (c *Container) RegisterNamedScoped(name string, resolver interface{}) error {
+	t := reflect.TypeOf(resolver)
+	if t.Kind() != reflect.Func {
+		return fmt.Errorf("%w, the resolver must be a function", ErrInvalidResolver)
+	}
+
 	return c.bind(resolver, name, Scoped)
 }
 
@@ -358,4 +292,117 @@ func (c *Container) Validate(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// bind maps an abstraction to concrete and instantiates if it is a singleton binding.
+func (c *Container) bind(resolver interface{}, name string, lifetime Lifetime) error {
+	reflectedResolver := reflect.TypeOf(resolver)
+
+	// For function based bindings
+	if reflectedResolver.Kind() == reflect.Func {
+		if reflectedResolver.NumOut() > 0 {
+			if _, exist := c.bindings[reflectedResolver.Out(0)]; !exist {
+				c.bindings[reflectedResolver.Out(0)] = make(map[string]*binding)
+			}
+		}
+
+		if err := c.validateResolverFunction(reflectedResolver); err != nil {
+			return err
+		}
+
+		c.bindings[reflectedResolver.Out(0)][name] = &binding{resolver: resolver, lifetime: lifetime}
+
+	} else { // For instance based bindings
+		if _, exist := c.bindings[reflectedResolver]; !exist {
+			c.bindings[reflectedResolver] = make(map[string]*binding)
+		}
+
+		c.bindings[reflectedResolver][name] = &binding{concrete: resolver, lifetime: lifetime}
+	}
+
+	return nil
+}
+
+func (c *Container) validateResolverFunction(funcType reflect.Type) error {
+	retCount := funcType.NumOut()
+
+	if retCount == 0 || retCount > 2 {
+		return fmt.Errorf("%w, signature is invalid - it must return abstract, or abstract and error", ErrInvalidResolver)
+	}
+
+	resolveType := funcType.Out(0)
+	for i := 0; i < funcType.NumIn(); i++ {
+		if funcType.In(i) == resolveType {
+			return fmt.Errorf("%w, signature is invalid - depends on abstract it returns", ErrInvalidResolver)
+		}
+	}
+
+	return nil
+}
+
+// invoke calls a function and its returned values.
+// It only accepts one value and an optional error.
+func (c *Container) invoke(ctx context.Context, function interface{}) (interface{}, error) {
+	arguments, err := c.arguments(ctx, function)
+	if err != nil {
+		return nil, err
+	}
+
+	values := reflect.ValueOf(function).Call(arguments)
+	if len(values) == 2 && values[1].CanInterface() {
+		if err, ok := values[1].Interface().(error); ok {
+			return values[0].Interface(), err
+		}
+	}
+	return values[0].Interface(), nil
+}
+
+// make resolves the binding and returns the concrete.
+// Search up any parent container scopes if the binding is not found in current scope.
+func (c *Container) make(ctx context.Context, t reflect.Type, name string) (interface{}, error) {
+	current := c
+	var binding *binding
+
+	for {
+		if found, exist := current.bindings[t][name]; exist {
+			binding = found
+			break
+		}
+
+		if current.parent == nil {
+			break
+		} else {
+			current = current.parent
+		}
+	}
+
+	if binding == nil {
+		return nil, fmt.Errorf("%w for abstraction '%s'", ErrBindingNotFound, t.String())
+	}
+
+	return binding.make(ctx, c)
+}
+
+// arguments returns the list of resolved arguments for a function.
+func (c *Container) arguments(ctx context.Context, function interface{}) ([]reflect.Value, error) {
+	reflectedFunction := reflect.TypeOf(function)
+	argumentsCount := reflectedFunction.NumIn()
+	arguments := make([]reflect.Value, argumentsCount)
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
+
+	for i := 0; i < argumentsCount; i++ {
+		abstraction := reflectedFunction.In(i)
+
+		if abstraction.Implements(contextType) {
+			arguments[i] = reflect.ValueOf(ctx)
+		} else {
+			if instance, err := c.make(ctx, abstraction, ""); err == nil {
+				arguments[i] = reflect.ValueOf(instance)
+			} else {
+				return nil, fmt.Errorf("%w for type '%s', Error: %w", ErrResolutionFailed, abstraction.String(), err)
+			}
+		}
+	}
+
+	return arguments, nil
 }

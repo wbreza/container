@@ -16,6 +16,20 @@ func MustRegisterNamedInstance(c *Container, name string, instance interface{}) 
 	}
 }
 
+// MustRegisterInstanceAs wraps the `RegisterInstanceAs` method and panics on errors instead of returning the errors.
+func MustRegisterInstanceAs[T any](c *Container, instance T) {
+	if err := RegisterInstanceAs(c, instance); err != nil {
+		panic(err)
+	}
+}
+
+// MustRegisterNamedInstanceAs wraps the `RegisterNamedInstanceAs` method and panics on errors instead of returning the errors.
+func MustRegisterNamedInstanceAs[T any](c *Container, name string, instance T) {
+	if err := RegisterNamedInstanceAs(c, name, instance); err != nil {
+		panic(err)
+	}
+}
+
 // MustRegisterSingleton wraps the `RegisterSingleton` method and panics on errors instead of returning the errors.
 func MustRegisterSingleton(c *Container, resolver interface{}) {
 	if err := c.RegisterSingleton(resolver); err != nil {

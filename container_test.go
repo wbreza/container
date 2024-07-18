@@ -927,3 +927,146 @@ func TestContainer_NewScope_Nested_Scopes(t *testing.T) {
 	assert.Equal(t, 3, called)
 	assert.Same(t, resolved5, resolved6)
 }
+
+func TestContainer_Register_With_Options(t *testing.T) {
+	c := container.New()
+
+	err := c.Register(container.RegisterOptions{
+		Resolver: func() Shape {
+			return &Circle{}
+		},
+		Lifetime: container.Singleton,
+	})
+
+	assert.NoError(t, err)
+
+	var s Shape
+	err = c.Resolve(context.Background(), &s)
+	assert.NoError(t, err)
+	assert.NotNil(t, s)
+}
+
+func TestContainer_Register_Named_With_Options(t *testing.T) {
+	c := container.New()
+
+	err := c.Register(container.RegisterOptions{
+		Name: "circle",
+		Resolver: func() Shape {
+			return &Circle{}
+		},
+		Lifetime: container.Singleton,
+	})
+
+	assert.NoError(t, err)
+
+	var s Shape
+	err = c.ResolveNamed(context.Background(), "circle", &s)
+	assert.NoError(t, err)
+	assert.NotNil(t, s)
+}
+
+func TestContainer_Register_Instance_With_Options(t *testing.T) {
+	c := container.New()
+
+	expected := &Circle{}
+
+	err := c.Register(container.RegisterOptions{
+		Resolver: expected,
+		Lifetime: container.Singleton,
+	})
+	assert.NoError(t, err)
+
+	var resolved *Circle
+	err = c.Resolve(context.Background(), &resolved)
+	assert.NoError(t, err)
+	assert.NotNil(t, resolved)
+	assert.Same(t, expected, resolved)
+}
+
+func TestContainer_InvokeAndRegister_With_Options(t *testing.T) {
+	c := container.New()
+	called := false
+	var expected *Circle
+
+	err := c.InvokeAndRegister(context.Background(), container.RegisterOptions{
+		Resolver: func() *Circle {
+			called = true
+			expected = &Circle{}
+			return expected
+		},
+		Lifetime: container.Singleton,
+	})
+
+	assert.NoError(t, err)
+	assert.True(t, called)
+	assert.NotNil(t, expected)
+
+	var resolved *Circle
+	err = c.Resolve(context.Background(), &resolved)
+	assert.NoError(t, err)
+	assert.NotNil(t, resolved)
+	assert.Same(t, expected, resolved)
+}
+
+func TestContainer_RegisterInstanceAs(t *testing.T) {
+	c := container.New()
+	expected := &Circle{}
+
+	err := container.RegisterInstanceAs[Shape](c, expected)
+	assert.NoError(t, err)
+
+	var resolved Shape
+	err = c.Resolve(context.Background(), &resolved)
+	assert.NoError(t, err)
+	assert.NotNil(t, resolved)
+	assert.Same(t, expected, resolved)
+}
+
+func TestContainer_RegisterNamedInstanceAs(t *testing.T) {
+	c := container.New()
+	expected := &Circle{}
+
+	err := container.RegisterNamedInstanceAs[Shape](c, "circle", expected)
+	assert.NoError(t, err)
+
+	var resolved Shape
+	err = c.ResolveNamed(context.Background(), "circle", &resolved)
+	assert.NoError(t, err)
+	assert.NotNil(t, resolved)
+	assert.Same(t, expected, resolved)
+}
+
+func TestContainer_Action_Example(t *testing.T) {
+	c := container.New()
+	c.RegisterNamedTransient("app-action", NewAppAction)
+
+	args := []string{"arg1", "arg2"}
+
+	scope, err := c.NewScope()
+	assert.NoError(t, err)
+
+	err = scope.RegisterInstance(args)
+	assert.NoError(t, err)
+
+	var action Action
+	err = scope.ResolveNamed(context.Background(), "app-action", &action)
+	assert.NoError(t, err)
+	assert.NotNil(t, action)
+	assert.Equal(t, args, action.(*AppAction).args)
+}
+
+type Action interface {
+	Run(ctx context.Context) error
+}
+
+type AppAction struct {
+	args []string
+}
+
+func NewAppAction(args []string) Action {
+	return &AppAction{args: args}
+}
+
+func (a AppAction) Run(ctx context.Context) error {
+	return nil
+}
